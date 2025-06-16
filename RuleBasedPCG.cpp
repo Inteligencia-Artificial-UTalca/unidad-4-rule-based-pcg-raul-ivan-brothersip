@@ -7,6 +7,10 @@
 // You can change 'int' to whatever type best represents your cells (e.g., char, bool).
 using Map = std::vector<std::vector<int>>;
 
+
+const int MAX = 1;
+const int MIN = -1;
+
 /**
  * @brief Prints the map (matrix) to the console.
  * @param map The map to print.
@@ -44,6 +48,8 @@ Map cellularAutomata(const Map& currentMap, int W, int H, int R, double U) {
     return newMap;
 }
 
+int oneOrTwo(int a, int b);
+
 /**
  * @brief Function to implement the Drunk Agent logic.
  * It should take a map and parameters controlling the agent's behavior,
@@ -70,6 +76,151 @@ Map drunkAgent(const Map& currentMap, int W, int H, int J, int I, int roomSizeX,
                int& agentX, int& agentY) {
     Map newMap = currentMap; // The new map is a copy of the current one
 
+    int sq = newMap[0][0];
+
+
+    double prbRoom = probGenerateRoom;  //auxiliar valor cuarto
+    double prbRoomIn = prbRoom;         //valor inicial
+
+    double prbDir = probChangeDirection; //auxiliar probabilidad cuarto
+    double prbDirIn = prbDir;
+
+
+    float minVal = 0.0f;
+    float maxVal = 1.0f; //valor maximo
+
+    //direccion
+    int dx = 1, dy = 0;
+    //direccion elegida (azar)
+    int dir = rand() % 2;
+
+    switch(dir){
+        case 0:
+            dx = oneOrTwo(-1, 1); dy = 0;
+            break;
+        case 1:
+            dx = 0; oneOrTwo(-1, 1);
+            break;
+        default:
+            dx = 0; dy = 1;
+            break;
+    }
+    
+    ///cantidad de iteraciones que camina
+    for(int a = 0; a < J; a++){
+
+        //cantidad de distancia que camina
+        for(int b = 0; b < I; b++)
+        {
+            //verificador que este dentro de los limites
+            if((agentX + dx < W && agentX + dx > 0) && (agentY + dy < H && agentY + dy > 0)){
+                
+                //cambiar el 
+                agentX += dx;
+                agentY += dy;
+
+                //cambiar valor de mapa a 1. (el pasillo)
+                newMap[agentY][agentX] = 1;
+            }
+        }
+
+
+        // CREAR EL CUARTO ALEATORIO-----------------------------------------------------------------------------------------
+
+
+        /*
+        //verifica si quiere o no crear habitacion
+        if(randRoom > prbRoom){
+
+           //METODO PARA GENERAR EL CUARTO
+
+           for(int p = -roomSizeX; p < roomSizeX; p++){
+
+                if(newMap[agentY][agentX + p] > 0 && newMap[agentY][agentX + p] < W){
+                    newMap[agentY][agentX + p] = 1;
+                }
+           }
+
+            prbRoom = prbRoomIn; // se reinicia la probabilidad
+        }
+        else{ //no se genera el cuarto
+
+            //aumentar la probabilidad
+            if(prbRoom + probIncreaseRoom < 1.0f){
+                prbRoom += probIncreaseRoom;
+            }
+        }
+
+
+
+        //CAMBIAR DIRECCION-----------------------------------------------------------------------------------------
+
+        float randDir = (rand() % 10) /10.0f;  // probabilidad de hacerlo
+
+        //verifica si quiere o no crear habitacion
+        if(randDir > prbDir){
+
+           //CAMBIAR DIRECCION
+
+            prbDir = prbDirIn; // se reinicia la probabilidad
+        }
+        else{ //no cambia direccion
+
+            //aumentar la probabilidad
+            if(prbDir + probIncreaseChange < 1.0f){
+                prbDir += probIncreaseChange;
+            }
+        }
+
+        //verificar si cambia la direccion
+        if (dx == 0 && dy!= 0){
+            
+            //rand dy
+            dy = 0;
+        }
+
+        if (dy == 0 && dx != 0){
+            
+            //rand dx
+            dx = 0;
+        }
+    */
+
+
+        double randDir = minVal + static_cast<double>(rand() / maxVal / (maxVal - minVal));
+
+        //verifica si quiere o no crear habitacion
+        if(randDir > prbDir){
+
+           //CAMBIAR DIRECCION
+
+           if(dx == 0){ dy = oneOrTwo(-1, 1); dx = 0;}
+           if(dy == 0){ dx = oneOrTwo(-1, 1); dy = 0;}
+
+            prbDir = prbDirIn; // se reinicia la probabilidad
+        }
+        else{ //no cambia direccion
+
+            //aumentar la probabilidad
+            if(prbDir + probIncreaseChange < 1.0f){
+                prbDir += probIncreaseChange;
+            }
+        }
+
+        printMap(newMap);
+
+    }
+    
+
+
+
+    //direccion
+    //camina
+    //habitacion o no?
+    //si crea habitacion, baja la prob, sino, aumenta la prob de crear habitacion
+    //nueva direccion
+
+
     // TODO: IMPLEMENTATION GOES HERE for the Drunk Agent logic.
     // The agent should move randomly.
     // You'll need a random number generator.
@@ -83,12 +234,26 @@ Map drunkAgent(const Map& currentMap, int W, int H, int J, int I, int roomSizeX,
     return newMap;
 }
 
+
+//metodo que regresa un valor u el otro
+int  oneOrTwo(int a, int b){
+
+    int choice = rand() % 2;
+
+    if(choice = 0){ return a;}
+    return b;
+}
+
+
 int main() {
+
+    srand(time(0));   //randomizador
+
     std::cout << "--- CELLULAR AUTOMATA AND DRUNK AGENT SIMULATION ---" << std::endl;
 
     // --- Initial Map Configuration ---
-    int mapRows = 10;
-    int mapCols = 20;
+    int mapRows = 30;
+    int mapCols = 30;
     Map myMap(mapRows, std::vector<int>(mapCols, 0)); // Map initialized with zeros
 
     // TODO: IMPLEMENTATION GOES HERE: Initialize the map with some pattern or initial state.
@@ -96,8 +261,8 @@ int main() {
     // or place the drunk agent at a specific position.
 
     // Drunk Agent's initial position
-    int drunkAgentX = mapRows / 2;
-    int drunkAgentY = mapCols / 2;
+    int drunkAgentX = 15;
+    int drunkAgentY = 15;
     // If your agent modifies the map at start, you could do it here:
     // myMap[drunkAgentX][drunkAgentY] = 2; // Assuming '2' represents the agent
 
@@ -117,15 +282,20 @@ int main() {
     int da_W = mapCols;
     int da_H = mapRows;
     int da_J = 5;      // Number of "walks"
-    int da_I = 10;     // Steps per walk
-    int da_roomSizeX = 5;
-    int da_roomSizeY = 3;
+    int da_I = 3;     // Steps per walk
+    int da_roomSizeX = 2;   //tamaño de los cuartos (eje X)
+    int da_roomSizeY = 1;   //tamaño de los cuartos (eje Y)
     double da_probGenerateRoom = 0.1;
     double da_probIncreaseRoom = 0.05;
-    double da_probChangeDirection = 0.2;
+    double da_probChangeDirection = 0.5;
     double da_probIncreaseChange = 0.03;
 
+    myMap = drunkAgent(myMap, da_W, da_H, da_J, da_I, da_roomSizeX, da_roomSizeY,
+                           da_probGenerateRoom, da_probIncreaseRoom,
+                           da_probChangeDirection, da_probIncreaseChange,
+                           drunkAgentX, drunkAgentY);
 
+    /*
     // --- Main Simulation Loop ---
     for (int iteration = 0; iteration < numIterations; ++iteration) {
         std::cout << "\n--- Iteration " << iteration + 1 << " ---" << std::endl;
@@ -147,6 +317,7 @@ int main() {
         // #include <chrono> // For std::chrono::milliseconds
         // std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
+    */
 
     std::cout << "\n--- Simulation Finished ---" << std::endl;
     return 0;
