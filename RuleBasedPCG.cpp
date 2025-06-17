@@ -4,6 +4,7 @@
 #include <chrono>   // For seeding the random number generator
 
 // Define Map as a vector of vectors of integers.
+//No olvidar g++ -std=c++11 -Wall -Wextra -pedantic RuleBasedPCG.cpp -o test
 // You can change 'int' to whatever type best represents your cells (e.g., char, bool).
 using Map = std::vector<std::vector<int>>;
 
@@ -78,7 +79,6 @@ Map drunkAgent(const Map& currentMap, int W, int H, int J, int I, int roomSizeX,
 
     int sq = newMap[0][0];
 
-
     double prbRoom = probGenerateRoom;  //auxiliar valor cuarto
     double prbRoomIn = prbRoom;         //valor inicial
 
@@ -95,124 +95,65 @@ Map drunkAgent(const Map& currentMap, int W, int H, int J, int I, int roomSizeX,
     int dir = rand() % 2;
 
     switch(dir){
-        case 0:
-            dx = oneOrTwo(-1, 1); dy = 0;
-            break;
-        case 1:
-            dx = 0; oneOrTwo(-1, 1);
-            break;
-        default:
-            dx = 0; dy = 1;
-            break;
-    }
+    case 0:
+        dx = oneOrTwo(-1, 1); dy = 0;
+        break;
+    case 1:
+        dx = 0; dy = oneOrTwo(-1, 1); 
+        break;
+    default:
+        dx = 0; dy = 1;
+        break;
+}
+
     
     ///cantidad de iteraciones que camina
-    for(int a = 0; a < J; a++){
+    for (int a = 0; a < J; a++) {
+        for (int b = 0; b < I; b++) {
+            if ((agentX + dx > 0 && agentX + dx < W - 1) &&
+                (agentY + dy > 0 && agentY + dy < H - 1)) {
 
-        //cantidad de distancia que camina
-        for(int b = 0; b < I; b++)
-        {
-            //verificador que este dentro de los limites
-            if((agentX + dx < W && agentX + dx > 0) && (agentY + dy < H && agentY + dy > 0)){
-                
-                //cambiar el 
                 agentX += dx;
                 agentY += dy;
-
-                //cambiar valor de mapa a 1. (el pasillo)
                 newMap[agentY][agentX] = 1;
-            }
-        }
 
-
-        // CREAR EL CUARTO ALEATORIO-----------------------------------------------------------------------------------------
-
-
-        /*
-        //verifica si quiere o no crear habitacion
-        if(randRoom > prbRoom){
-
-           //METODO PARA GENERAR EL CUARTO
-
-           for(int p = -roomSizeX; p < roomSizeX; p++){
-
-                if(newMap[agentY][agentX + p] > 0 && newMap[agentY][agentX + p] < W){
-                    newMap[agentY][agentX + p] = 1;
+                // Intentar generar habitación
+                double randRoom = static_cast<double>(rand()) / RAND_MAX;
+                if (randRoom < prbRoom) {
+                    for (int ry = -roomSizeY; ry <= roomSizeY; ry++) {
+                        for (int rx = -roomSizeX; rx <= roomSizeX; rx++) {
+                            int newX = agentX + rx;
+                            int newY = agentY + ry;
+                            if (newX > 0 && newX < W && newY > 0 && newY < H) {
+                                newMap[newY][newX] = 1;
+                            }
+                        }
+                    }
+                    prbRoom = prbRoomIn; // resetear probabilidad
+                } else {
+                    if (prbRoom + probIncreaseRoom <= 1.0)
+                        prbRoom += probIncreaseRoom;
                 }
-           }
 
-            prbRoom = prbRoomIn; // se reinicia la probabilidad
-        }
-        else{ //no se genera el cuarto
-
-            //aumentar la probabilidad
-            if(prbRoom + probIncreaseRoom < 1.0f){
-                prbRoom += probIncreaseRoom;
+                // Intentar cambiar dirección
+                double randDir = static_cast<double>(rand()) / RAND_MAX;
+                if (randDir < prbDir) {
+                    if (dx == 0) {
+                        dy = 0;
+                        dx = oneOrTwo(-1, 1);
+                    } else {
+                        dx = 0;
+                        dy = oneOrTwo(-1, 1);
+                    }
+                    prbDir = prbDirIn;
+                } else {
+                    if (prbDir + probIncreaseChange <= 1.0)
+                        prbDir += probIncreaseChange;
+                }
             }
         }
-
-
-
-        //CAMBIAR DIRECCION-----------------------------------------------------------------------------------------
-
-        float randDir = (rand() % 10) /10.0f;  // probabilidad de hacerlo
-
-        //verifica si quiere o no crear habitacion
-        if(randDir > prbDir){
-
-           //CAMBIAR DIRECCION
-
-            prbDir = prbDirIn; // se reinicia la probabilidad
-        }
-        else{ //no cambia direccion
-
-            //aumentar la probabilidad
-            if(prbDir + probIncreaseChange < 1.0f){
-                prbDir += probIncreaseChange;
-            }
-        }
-
-        //verificar si cambia la direccion
-        if (dx == 0 && dy!= 0){
-            
-            //rand dy
-            dy = 0;
-        }
-
-        if (dy == 0 && dx != 0){
-            
-            //rand dx
-            dx = 0;
-        }
-    */
-
-
-        double randDir = minVal + static_cast<double>(rand() / maxVal / (maxVal - minVal));
-
-        //verifica si quiere o no crear habitacion
-        if(randDir > prbDir){
-
-           //CAMBIAR DIRECCION
-
-           if(dx == 0){ dy = oneOrTwo(-1, 1); dx = 0;}
-           if(dy == 0){ dx = oneOrTwo(-1, 1); dy = 0;}
-
-            prbDir = prbDirIn; // se reinicia la probabilidad
-        }
-        else{ //no cambia direccion
-
-            //aumentar la probabilidad
-            if(prbDir + probIncreaseChange < 1.0f){
-                prbDir += probIncreaseChange;
-            }
-        }
-
         printMap(newMap);
-
     }
-    
-
-
 
     //direccion
     //camina
@@ -236,13 +177,12 @@ Map drunkAgent(const Map& currentMap, int W, int H, int J, int I, int roomSizeX,
 
 
 //metodo que regresa un valor u el otro
-int  oneOrTwo(int a, int b){
-
+int oneOrTwo(int a, int b){
     int choice = rand() % 2;
-
-    if(choice = 0){ return a;}
+    if (choice == 0) return a;
     return b;
 }
+
 
 
 int main() {
