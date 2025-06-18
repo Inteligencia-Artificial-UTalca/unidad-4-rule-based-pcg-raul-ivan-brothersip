@@ -28,6 +28,22 @@ void printMap(const Map& map) {
     std::cout << "-------------------" << std::endl;
 }
 
+int oneOrTwo(int a, int b);
+
+Map randomizeMap (const Map& currentMap, int W, int H){
+
+    Map newMap = currentMap;
+    for(int a = 0; a < H; a++){
+        
+        for(int b = 0; b < W; b++){
+            newMap[a][b] = oneOrTwo(0,1);
+        }
+    }
+
+    return newMap;
+}
+
+
 /**
  * @brief Function to implement the Cellular Automata logic.
  * It should take a map and return the updated map after one iteration.
@@ -41,6 +57,43 @@ void printMap(const Map& map) {
 Map cellularAutomata(const Map& currentMap, int W, int H, int R, double U) {
     Map newMap = currentMap; // Initially, the new map is a copy of the current one
 
+    //randomizar el mapa
+    
+    //printMap(newMap);
+
+    //recorrer el mapa
+    for(int y = 0; y < H; y++){
+        for(int x = 0; x < W; x++){
+            int mapVecLive = 0; //vecinos que estan "vivos"
+
+            //revisa alrededor de un "nodo"
+            for(int dx = -R; dx <= R; dx++){
+                for(int dy = -R; dy <= R; dy++){
+                    if(dx == 0 && dy == 0){continue;} //si esta en el nodo que esta revisando
+
+                    int vecX = x + dx; //vecino en x e y
+                    int vecY = y + dy;
+
+                    //si esta dentro de los limites
+                    if(vecX >= 0 && vecX < W && vecY >= 0 && vecY < H){
+                        if(currentMap[vecY][vecX] == 1){ mapVecLive++; } //si es un nodod vivo, la cantidad aumenta
+                    }
+            } }
+
+            int totalPosN = (R*2 + 1)*(R*2 + 1) - 1; //calcular el area. Si R = 1, entonces el area es 9
+            float threLive = mapVecLive/totalPosN; // la cantidad de 1, en un rango de 0.0 a 1.0;
+
+            //si es un 1
+            if(newMap[y][x] == 1){
+                if(threLive >= U){ //si esta encima del minimo posible
+                    newMap[y][x] = 1; }     //esta "vivo"
+                else {
+                    newMap[y][x] = 0; }  //esta "muerto"
+            }
+
+        }
+    }
+
     // TODO: IMPLEMENTATION GOES HERE for the cellular automata logic.
     // Iterate over each cell and apply the transition rules.
     // Remember that updates should be based on the 'currentMap' state
@@ -49,7 +102,7 @@ Map cellularAutomata(const Map& currentMap, int W, int H, int R, double U) {
     return newMap;
 }
 
-int oneOrTwo(int a, int b);
+
 
 /**
  * @brief Function to implement the Drunk Agent logic.
@@ -104,12 +157,13 @@ Map drunkAgent(const Map& currentMap, int W, int H, int J, int I, int roomSizeX,
     default:
         dx = 0; dy = 1;
         break;
-}
+    }
 
+    int stepDist = (rand() % 3) -1;
     
     ///cantidad de iteraciones que camina
     for (int a = 0; a < J; a++) {
-        for (int b = 0; b < I; b++) {
+        for (int b = 0; b < (I + stepDist); b++) {
             if ((agentX + dx > 0 && agentX + dx < W - 1) &&
                 (agentY + dy > 0 && agentY + dy < H - 1)) {
 
@@ -120,8 +174,13 @@ Map drunkAgent(const Map& currentMap, int W, int H, int J, int I, int roomSizeX,
                 // Intentar generar habitación
                 double randRoom = static_cast<double>(rand()) / RAND_MAX;
                 if (randRoom < prbRoom) {
-                    for (int ry = -roomSizeY; ry <= roomSizeY; ry++) {
-                        for (int rx = -roomSizeX; rx <= roomSizeX; rx++) {
+
+                    int roomdifX = (rand() % 3) -1; //cambiar tamaño de cuarto, rango de -1 a 1
+                    int roomdifY = (rand() % 3) -1; 
+
+
+                    for (int ry = -(roomSizeY + roomdifY); ry <= (roomSizeY + roomdifY); ry++) {
+                        for (int rx = -(roomSizeX + roomdifX); rx <= (roomSizeX + roomdifX); rx++) {
                             int newX = agentX + rx;
                             int newY = agentY + ry;
                             if (newX > 0 && newX < W && newY > 0 && newY < H) {
@@ -152,7 +211,7 @@ Map drunkAgent(const Map& currentMap, int W, int H, int J, int I, int roomSizeX,
                 }
             }
         }
-        printMap(newMap);
+        //printMap(newMap);     //para corroborar que esta siendo hecho el mapa
     }
 
     //direccion
@@ -192,8 +251,8 @@ int main() {
     std::cout << "--- CELLULAR AUTOMATA AND DRUNK AGENT SIMULATION ---" << std::endl;
 
     // --- Initial Map Configuration ---
-    int mapRows = 30;
-    int mapCols = 30;
+    int mapRows = 20;
+    int mapCols = 20;
     Map myMap(mapRows, std::vector<int>(mapCols, 0)); // Map initialized with zeros
 
     // TODO: IMPLEMENTATION GOES HERE: Initialize the map with some pattern or initial state.
@@ -201,8 +260,8 @@ int main() {
     // or place the drunk agent at a specific position.
 
     // Drunk Agent's initial position
-    int drunkAgentX = 15;
-    int drunkAgentY = 15;
+    int drunkAgentX = mapRows/2;
+    int drunkAgentY = mapCols/2;
     // If your agent modifies the map at start, you could do it here:
     // myMap[drunkAgentX][drunkAgentY] = 2; // Assuming '2' represents the agent
 
@@ -221,43 +280,52 @@ int main() {
     // Drunk Agent Parameters
     int da_W = mapCols;
     int da_H = mapRows;
-    int da_J = 5;      // Number of "walks"
-    int da_I = 3;     // Steps per walk
+    int da_J = 6;      // Number of "walks"
+    int da_I = 8;     // Steps per walk
     int da_roomSizeX = 2;   //tamaño de los cuartos (eje X)
     int da_roomSizeY = 1;   //tamaño de los cuartos (eje Y)
-    double da_probGenerateRoom = 0.1;
-    double da_probIncreaseRoom = 0.05;
+    double da_probGenerateRoom = 0.01;
+    double da_probIncreaseRoom = 0.01;
     double da_probChangeDirection = 0.5;
     double da_probIncreaseChange = 0.03;
 
-    myMap = drunkAgent(myMap, da_W, da_H, da_J, da_I, da_roomSizeX, da_roomSizeY,
+    /* myMap = drunkAgent(myMap, da_W, da_H, da_J, da_I, da_roomSizeX, da_roomSizeY,
                            da_probGenerateRoom, da_probIncreaseRoom,
                            da_probChangeDirection, da_probIncreaseChange,
-                           drunkAgentX, drunkAgentY);
+                           drunkAgentX, drunkAgentY); */
 
-    /*
+    
+
+    Map nMap = myMap;
+    Map celMap = randomizeMap(myMap, ca_W, ca_H);
+    
+    
     // --- Main Simulation Loop ---
     for (int iteration = 0; iteration < numIterations; ++iteration) {
         std::cout << "\n--- Iteration " << iteration + 1 << " ---" << std::endl;
+
+        int agX = drunkAgentX;
+        int agY = drunkAgentY;
 
         // TODO: IMPLEMENTATION GOES HERE: Call the Cellular Automata and/or Drunk Agent functions.
         // The order of calls will depend on how you want them to interact.
 
         // Example: First the cellular automata, then the agent
-        myMap = cellularAutomata(myMap, ca_W, ca_H, ca_R, ca_U);
-        myMap = drunkAgent(myMap, da_W, da_H, da_J, da_I, da_roomSizeX, da_roomSizeY,
+        myMap = cellularAutomata(celMap, ca_W, ca_H, ca_R, ca_U);
+        
+        /*nMap = drunkAgent(myMap, da_W, da_H, da_J, da_I, da_roomSizeX, da_roomSizeY,
                            da_probGenerateRoom, da_probIncreaseRoom,
                            da_probChangeDirection, da_probIncreaseChange,
-                           drunkAgentX, drunkAgentY);
+                           agX, agY);
+                           */
 
-        printMap(myMap);
+        printMap(celMap);
 
         // You can add a delay to visualize the simulation step by step
         // #include <thread> // For std::this_thread::sleep_for
         // #include <chrono> // For std::chrono::milliseconds
         // std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
-    */
 
     std::cout << "\n--- Simulation Finished ---" << std::endl;
     return 0;
