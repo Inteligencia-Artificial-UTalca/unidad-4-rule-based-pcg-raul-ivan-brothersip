@@ -57,10 +57,6 @@ Map randomizeMap (const Map& currentMap, int W, int H){
 Map cellularAutomata(const Map& currentMap, int W, int H, int R, double U) {
     Map newMap = currentMap; // Initially, the new map is a copy of the current one
 
-    //randomizar el mapa
-    
-    //printMap(newMap);
-
     //recorrer el mapa
     for(int y = 0; y < H; y++){
         for(int x = 0; x < W; x++){
@@ -78,19 +74,26 @@ Map cellularAutomata(const Map& currentMap, int W, int H, int R, double U) {
                     if(vecX >= 0 && vecX < W && vecY >= 0 && vecY < H){
                         if(currentMap[vecY][vecX] == 1){ mapVecLive++; } //si es un nodod vivo, la cantidad aumenta
                     }
-            } }
+                }
+            }
 
             int totalPosN = (R*2 + 1)*(R*2 + 1) - 1; //calcular el area. Si R = 1, entonces el area es 9
-            float threLive = mapVecLive/totalPosN; // la cantidad de 1, en un rango de 0.0 a 1.0;
+            float threLive = static_cast<float>(mapVecLive) / totalPosN; // la cantidad de 1, en un rango de 0.0 a 1.0;
 
             //si es un 1
-            if(newMap[y][x] == 1){
+            if(currentMap[y][x] == 1){
                 if(threLive >= U){ //si esta encima del minimo posible
                     newMap[y][x] = 1; }     //esta "vivo"
                 else {
                     newMap[y][x] = 0; }  //esta "muerto"
+            } else {
+                //si es un 0
+                if(threLive > U){ //si tiene suficiente vecinos vivos
+                    newMap[y][x] = 1; //nace
+                } else {
+                    newMap[y][x] = 0; //sigue muerto
+                }
             }
-
         }
     }
 
@@ -101,6 +104,7 @@ Map cellularAutomata(const Map& currentMap, int W, int H, int R, double U) {
 
     return newMap;
 }
+
 
 
 
@@ -312,6 +316,7 @@ int main() {
 
         // Example: First the cellular automata, then the agent
         myMap = cellularAutomata(celMap, ca_W, ca_H, ca_R, ca_U);
+        celMap = myMap;
         
         /*nMap = drunkAgent(myMap, da_W, da_H, da_J, da_I, da_roomSizeX, da_roomSizeY,
                            da_probGenerateRoom, da_probIncreaseRoom,
@@ -319,7 +324,7 @@ int main() {
                            agX, agY);
                            */
 
-        printMap(celMap);
+        printMap(myMap);
 
         // You can add a delay to visualize the simulation step by step
         // #include <thread> // For std::this_thread::sleep_for
