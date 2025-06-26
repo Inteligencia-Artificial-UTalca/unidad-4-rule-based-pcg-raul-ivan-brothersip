@@ -174,68 +174,77 @@ void printMap(const Map& map){
     std::cout << "-------------------" << std::endl;
 }
 
+//genera el camino de cuartos(tamaño), es recursivo este
+void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float& pointsLeft, int mapM, int mapN, int wSimple, int wLarge, int wWide, int wTall, float probBif){
 
-
-Map firstMap(int M, int N, int startY, int startX, float&points, float probBif, int w1, int w2, int w3, int w4)
-{
-    Map map(M, vector<int>(N,NOTHING)); //mapa es instanciado
-
-    queue<Room> pointRooms; //lista
-
-    Room startRoom = {{startY, startX},SIMPLE}; //primer cuarto es simple
-
-    float initialCost = getRoomCost(startRoom.size);
-    if (points >= initialCost && canPlaceRoom(map, startRoom.pos.first, startRoom.pos.second, startRoom.size, M, N)) {
-        placeRoom(map, startRoom.pos.first, startRoom.pos.second, startRoom.size);  // se agrega
-        points -= initialCost; // se quitan el puntaje
-        pointRooms.push(startRoom); // se agrega a la cola
+    float roomCost = getRoomCost(currRmType); //obtener el valor del cuarto actual
+    //si no quedan puntos o 
+    if( pointsLeft < roomCost || !canPlaceRoom(map, currY, currX, currRmType, mapM, mapN)){
+        return; //termina el camino
     }
 
-    //loop inicial para la creacion
-    while(points > 0 && !pointRooms.empty()){
-        Room currRoom = pointRooms.front();
-        pointRooms.pop();
-
-        int nExp = 1; //posibles expansiones de cuartos
-        //calcular posibilidad de qie sea bifurcacion
-        if((float)rand() / RAND_MAX < probBif){
-            if((float)rand() / RAND_MAX > 0.5f){ nExp = 2;} //si es una o dos
-            else{ nExp = 3; }
-        }
-
-        for(int i = 0; i < nExp; i++){
-            if(points <= 0){break;} //si se acabaron los puntos
-
-            int dirId = rand() % 4; //ID de direccion
-            int newY = currRoom.pos.first + Dy[dirId];
-            int newX = currRoom.pos.second + Dx[dirId];
-
-            int newRoomType = NOTHING;  //nuevo valor del tipo de cuarto
-
-            //NUEVO METODO DE CALCULAR EL NUEVO TIPO DE CUARTO
-
-            int totalNewType = w1 + w2 + w3 + w4;
-
-            int randomWeight = rand() % totalNewType; //cual cuarto se
-
-            // Determine room type based on weighted selection
-            if (randomWeight < w1) { newRoomType = SIMPLE;}
-            else if (randomWeight < w1 + w2) { newRoomType = LARGE; }
-            else if (randomWeight < w1 + w2 + w3) { newRoomType = WIDE;}
-            else { newRoomType = TALL; }
-
-            float costNewRoom = getRoomCost(newRoomType); //nuevo coste del cuarto
-            if(points >= costNewRoom && canPlaceRoom(map, newY, newX, newRoomType, M, N))
-            {
-                placeRoom(map, newY, newX, newRoomType);        //se agrega el nuevo cuarto
-                points -= costNewRoom;                           //se quitan el puntaje
-                pointRooms.push({{newY,newX}, newRoomType});    //se agrega a la cola
-            }
-        }
+    //colocar el cuarto
+    placeRoom(map,currY,currX,currRmType);
+    pointsLeft -= roomCost;                 //se resta el puntaje
+    
+    int nExpansion = 1; //tipo de caminos a realizar
+    if((float)rand() / RAND_MAX < probBif){
+            if((float)rand() / RAND_MAX > 0.5f){ nExpansion = 2;} //si es una o dos
+            else{ nExpansion = 3; }
     }
-    return map;
+
+    for(int i = 0; i < nExpansion; i++){
+        if(pointsLeft <= 0){ break;} //si se queda sin puntos
+    
+        int dirId = rand() %4; //tipo de direccion a ir
+        int nextY = currY + Dy[dirId];  //proximo Y
+        int nextX = currX + Dx[dirId];  //proximo X
+
+        int nextRoomType = SIMPLE;  //proximo tipo de ciarto
+        int totalW = wSimple + wLarge + wWide + wTall; //total de posibilidades de cuarto
+        int randomW = rand() % totalW;                  //rand cuarto
+
+        //asignacion de cuarto
+        if (randomW < wSimple) { nextRoomType = SIMPLE;}
+        else if (randomW < wSimple + wLarge) { nextRoomType = LARGE; }
+        else if (randomW < wSimple + wLarge + wWide) { nextRoomType = WIDE;}
+        else { nextRoomType = TALL; }
+
+        float nextRoomCost = getRoomCost(nextRoomType); //obtener precio del siguiente cuarto
+
+        //proximo cuarto
+        if(pointsLeft >= nextRoomCost && canPlaceRoom(map, nextY, nextX, nextRoomType, mapM, mapN)){
+            generatePathRoomSize(map, nextY, nextX, nextRoomType, pointsLeft, mapM, mapN, wSimple, wLarge, wWide, wTall, probBif);
+        }
+
+    }
 }
 
+
+Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimple, int wLarge, int wWide, int wTall, float probBif){
+
+    Map map(M, std::vector<int>(N, NOTHING));
+
+    //el primer intento, se hacen los mayores mapas
+    generatePathRoomSize(map,startY, startX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif);
+
+    //COSA AHORA PARA PODER USAR TODOS LOS PUNTOS POSIBLES
+    int maxAttempts = 50;   //INTENTOS MAXIMOS
+    int attempts = 0;       //INTENTOS ACTUALES
+
+    while(points > COST_L && attempts < maxAttempts){
+        int randX = rand() % 3 - 1; //INTENTA EN UN RANGO
+        int randY = rand() % 3 - 1;
+
+        //SI SE PUEDE COLOCAR
+        if(canPlaceRoom(map, startY + randY, startX + randX, SIMPLE, M, N)){
+            generatePathRoomSize(map,startY + randY, startX + randX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif); //SE INTENTA DE NUEVO
+        }
+        attempts++;
+    }
+
+    return map;
+}
 
 //imprime el primer mapa
 void printMapOne(const Map& map){
@@ -253,15 +262,16 @@ void printMapOne(const Map& map){
     }
 }
 
-
+//g++ Tarea4PCG.cpp -o wow
+//./wow
 int main(){
 
     srand(time(nullptr));
 
     int M = 7, N = 13; //ALTO Y ANCHO
 
-    int sM = (M/2); //pos inicial en x
-    int sN = (N/2); //pos incial en y
+    int sY = (M/2); //pos inicial en x
+    int sX = (N/2); //pos incial en y
 
     
     //PROBABILIDADES
@@ -271,14 +281,14 @@ int main(){
     int probSimple = 50;
     int probLarge = 10;
     int probWide = 15;
-    int ProbTall = 20;
+    int probTall = 20;
 
-    int lvl = 2;    //nivel en el que esta
+    int lvl = 1;    //nivel en el que esta
     float points = 5;
     points += ((rand() % 3) + (lvl*2.6f)); //puntos para que gaste en cuartos
-    float probBifurcation = 0.3f;
+    float probBifurcation = 0.5f;
 
-    Map myMap = firstMap(M,N,sM,sN,points,probBifurcation, probSimple, probLarge, probWide, ProbTall);
+    Map myMap = map_RoomSize(sY ,sX ,points, M, N, probSimple, probLarge, probWide, probTall, probBifurcation);
 
     cout << endl << "puntaje que sobro: " << points << endl;
 
