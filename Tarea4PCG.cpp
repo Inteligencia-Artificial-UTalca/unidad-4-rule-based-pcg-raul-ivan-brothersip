@@ -1,8 +1,10 @@
 #include <iostream>
 #include <vector>
 #include <random>   // Para random
+#include <iomanip>
 #include <queue>    // para las colas
 #include <chrono>   // para tener el seed para el random
+#include <cmath>    //matematicas aaaaaaaaaaaa
 
 // Define Map as a vector of vectors of integers.
 //No olvidar g++ -std=c++11 -Wall -Wextra -pedantic Tarea4PCG.cpp -o isaac
@@ -10,6 +12,7 @@
 using namespace std;
 using Map = std::vector<std::vector<int>>;
 
+/*
 //drunk agent para la creacion de cuartos
 //celullar automata para ver donde se crea el secret room
 
@@ -44,6 +47,7 @@ using Map = std::vector<std::vector<int>>;
 
 // PROBABILIDAD
 // salida secreta (probabilidad)
+*/
 
 //tipo de cuarto, para imprimir el mapa
 const int EMPTY = 0;
@@ -58,6 +62,7 @@ const int SACRI = 8;
 const int EXIT = 9;
 
 
+/*
 //TRES MAPAS
 //MAPA 1 = cuartos
 //MAPA 2 = tipos de cuartos
@@ -86,6 +91,7 @@ const int EXIT = 9;
 // 1 1 1 1 1       1       1 1 1 1 1
 // 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 
 
+*/
 
 //tamaño de cuarto
 const int NOTHING = 0;  //espacio libre
@@ -94,19 +100,54 @@ const int LARGE = 2;    // cuarto de 2x2
 const int WIDE = 3;     // cuarto de 2x1
 const int TALL = 4;     // cuarto de 1x2
 
-const float COST_S = 1.0f;
+const float COST_S = 1.0f; //Coste de los cuartos
 const float COST_L = 2.0f;
 const float COST_W = 1.5f;
 const float COST_T = 1.5f;
 
-const int Dy[] = {-1,1,0,0};    //drecciones aleatorias
+const int Dy[] = {-1,1,0,0};    //direcciones aleatorias
 const int Dx[] = {0,0,-1,1};
 
-struct Room{
-    pair<int, int> pos; //posicion
-    int size; //tamaño de cuarto
 
+
+int M = 7, N = 13; //ALTO Y ANCHO
+
+struct Room{
+    pair<int, int> pos;     // Posicion (fila, columna)
+    int size;               // Tamaño de cuarto (SIMPLE, LARGE, WIDE, TALL)
+    int h;                  // Profundidad del cuarto (distancia desde el inicio)
+    int type;               // Tipo de cuarto (BOSS, ITEM, SHOP, etc.)
+    int id;                 // ID único para la sala (para BFS y conteo de conexiones)
+
+    int width;              // Ancho real del cuarto
+    int height;             // Alto real del cuarto
+
+    int connections;        // Número de conexiones a otras salas
+
+    // Constructor para inicializar
+    Room(pair<int, int> p, int s, int room_id) : pos(p), size(s), h(0), type(EMPTY), id(room_id), connections(0) {
+        switch (s) { // Use 's' for size, not 'roomSize'
+            case SIMPLE: height = 1; width = 1; break;
+            case LARGE:  height = 2; width = 2; break;
+            case WIDE:   height = 1; width = 2; break;
+            case TALL:   height = 2; width = 1; break;
+            default: height = 0; width = 0; break; // Should be unreachable
+        }
+    }
 };
+
+vector<Room> allRoomsMade; //todos los cuartos hechos
+Map roomIdMap(M, std::vector<int>(N, 0));              //mapa de ID
+int currentIdRoom = 1;      //id actual del cuarto
+vector<Room> finalRooms;    //cuartos finales
+
+//Si esta dentro de los limites
+bool isInLimits(int X, int Y){
+    if(Y >= 0 && Y < M && X >= 0 && X < N){ return true; }
+    return false;
+}
+
+
 
 //verifica si esta libre el espacio
 bool canPlaceRoom(const Map& map, int y, int x, int roomType, int M, int N){
@@ -121,7 +162,7 @@ bool canPlaceRoom(const Map& map, int y, int x, int roomType, int M, int N){
     }
 
     //si esta dentro de los limites
-    if(y < 0 || x < 0 || (y + height) > M || (x + width) > N){ return false; }
+    if(!isInLimits(x,y) || !isInLimits(x + width - 1, y + height -1) ){ return false; }
 
     //revisa si hay algo en el mapa
     for(int i = y; i < y + height; i++){
@@ -143,10 +184,14 @@ void placeRoom(Map& map, int y, int x, int roomType){
         case TALL:   height = 2; width = 1; break;
     }
 
+    Room nextRoom({y,x}, roomType, currentIdRoom++);    //se crea nuevo cuarto(constructor)
+    allRoomsMade.push_back(nextRoom);                   //se añade al allroomsmade
+
     //revisa si hay algo en el mapa
     for(int i = y; i < y + height; i++){
         for(int j = x; j < x + width; j++){
             map[i][j] = roomType;
+            roomIdMap[i][j] = nextRoom.id;   //
         }
     }
 }
@@ -162,12 +207,14 @@ float getRoomCost(int roomType) {
     }
 }
 
+//imprimir el mapa casual
 void printMap(const Map& map){
     std::cout << "--- Current Map ---" << std::endl;
+    cout << setw(3);
     for (const auto& row : map) {
         for (int cell : row) {
             // Adapt this to represent your cells meaningfully (e.g., ' ' for empty, '#' for occupied).
-            std::cout << cell << " ";
+            std::cout << cell << setw(3);
         }
         std::cout << std::endl;
     }
@@ -177,21 +224,26 @@ void printMap(const Map& map){
 //genera el camino de cuartos(tamaño), es recursivo este
 void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float& pointsLeft, int mapM, int mapN, int wSimple, int wLarge, int wWide, int wTall, float probBif){
 
+    float currBifProb = probBif; //posible nueva bifurcacion
+
     float roomCost = getRoomCost(currRmType); //obtener el valor del cuarto actual
     //si no quedan puntos o 
     if( pointsLeft < roomCost || !canPlaceRoom(map, currY, currX, currRmType, mapM, mapN)){
-        return; //termina el camino
-    }
+        return; } //termina el camino
 
     //colocar el cuarto
-    placeRoom(map,currY,currX,currRmType);
+    placeRoom(map,currY,currX, currRmType);
+    roomIdMap[currY][currX] = currentIdRoom;
+    
     pointsLeft -= roomCost;                 //se resta el puntaje
     
     int nExpansion = 1; //tipo de caminos a realizar
     if((float)rand() / RAND_MAX < probBif){
+        probBif -= 0.1f;
             if((float)rand() / RAND_MAX > 0.5f){ nExpansion = 2;} //si es una o dos
             else{ nExpansion = 3; }
     }
+    else{ probBif += 0.1f;}
 
     for(int i = 0; i < nExpansion; i++){
         if(pointsLeft <= 0){ break;} //si se queda sin puntos
@@ -220,29 +272,29 @@ void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float&
     }
 }
 
-
+//FUNCION PRINCIPAL
 Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimple, int wLarge, int wWide, int wTall, float probBif){
-
-    Map map(M, std::vector<int>(N, NOTHING));
+    allRoomsMade.clear(); //se limpia
+    currentIdRoom = 0;
+    Map map(M, std::vector<int>(N, NOTHING)); //SE INSTANCIA EL MAPA
 
     //el primer intento, se hacen los mayores mapas
     generatePathRoomSize(map,startY, startX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif);
 
-    //COSA AHORA PARA PODER USAR TODOS LOS PUNTOS POSIBLES
-    int maxAttempts = 50;   //INTENTOS MAXIMOS
+    //PARA QUE USE LA MAYORIA DE PUNTOS
+    int maxAttempts = 10;   //INTENTOS MAXIMOS
     int attempts = 0;       //INTENTOS ACTUALES
 
     while(points > COST_L && attempts < maxAttempts){
-        int randX = rand() % 3 - 1; //INTENTA EN UN RANGO
-        int randY = rand() % 3 - 1;
+        int dirId = rand() % 4;
+        int randX = Dx[dirId];
+        int randY = Dy[dirId];
 
         //SI SE PUEDE COLOCAR
-        if(canPlaceRoom(map, startY + randY, startX + randX, SIMPLE, M, N)){
-            generatePathRoomSize(map,startY + randY, startX + randX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif); //SE INTENTA DE NUEVO
-        }
+        if(canPlaceRoom(map, startY + randY, startX + randX, SIMPLE, M, N)){ //SE INTENTA DE NUEVO 
+            generatePathRoomSize(map,startY + randY, startX + randX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif); }
         attempts++;
     }
-
     return map;
 }
 
@@ -262,13 +314,254 @@ void printMapOne(const Map& map){
     }
 }
 
+//----------------------------------------------
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+//regresa los cuartos cercanos
+std::vector<Room*> getNearbyRooms(const std::vector<Room>& allRooms, int currentCellY, int currentCellX) {
+    std::vector<Room*> nearbyRooms;
+    std::vector<int> foundRoomIds; // Para evitar añadir la misma sala varias veces
+
+    for (int i = 0; i < 4; ++i) {
+        int nextY = currentCellY + Dy[i];
+        int nextX = currentCellX + Dx[i];
+
+        // Verifica que la coordenada del vecino esté dentro de los límites del mapa
+        if (nextY >= 0 && nextY < M && nextX >= 0 && nextX < N) {
+            int roomIdAtNeighbor = roomIdMap[nextY][nextX];
+
+            if (roomIdAtNeighbor != NOTHING) { 
+
+                bool alrAdd = false;
+                for (int id : foundRoomIds) {
+                    if (id == roomIdAtNeighbor) {
+                        alrAdd = true;
+                        break;
+                    }
+                }
+
+                if (!alrAdd) {
+                    // Busca el objeto Room correspondiente en allRoomsMade usando el ID
+                    for (const Room& room : allRooms) { // Itera por referencia constante
+                        if (room.id == roomIdAtNeighbor ) {
+                            nearbyRooms.push_back(const_cast<Room*>(&room));
+                            foundRoomIds.push_back(roomIdAtNeighbor); // Marca como añadido
+                            break; // Ya encontramos el cuarto, pasa al siguiente vecino
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return nearbyRooms;
+}
+
+
+//si es un cuarto final
+bool isFinalRoom(int Y, int X){
+    vector<Room*> roomsnear = getNearbyRooms(allRoomsMade, Y, X); //obtener cuartos cercanos
+
+    if(roomsnear.size() == 1){
+        return true;
+    }
+    return false;
+}
+
+//si es un posible cuarto secreto
+bool isPossibeSecret(int Y, int X){
+    vector<Room*> roomsnear = getNearbyRooms(allRoomsMade, Y, X); //obtener cuartos cercanos
+
+    if(roomsnear.size() >= 2){
+        return true;
+    }
+    return false;
+}
+
+//heuristica
+float heuristic(int startX, int startY, int endX, int endY){
+    return sqrt(pow((endX - startX),2) + pow((endY- startY),2));
+}
+
+//crear el mapa
+Map roomTypeMap(const Map& firstMap, int M, int N, int startY, int startX, float probItem, float probShop, float probSecret){
+
+    vector<Room> finalRooms; //cuartos que no tienen nada alrededor suyo
+    Map map(M, std::vector<int>(N, UNAVAILABLE)); //se crea un segundo mapa
+
+    for(int i = 0; i < M; i++){
+        for(int j = 0; j < N; j++){
+            if(firstMap[i][j] != NOTHING){ map[i][j] = EMPTY;} //se colocan los cuartos
+        }
+    }
+
+    //si es cuarto final, es decir si solo tiene un cuarto alrededor
+    for(int i = 0; i < M; i++){
+        for(int j = 0; j < N; j++){
+            if(firstMap[i][j] == SIMPLE && isFinalRoom(i,j)){
+                Room fRoom({i,j}, firstMap[i][j],roomIdMap[i][j]); //se crea nuevo cuarto
+                finalRooms.push_back(fRoom);                        //se agrega a la lista
+            }
+        }
+    }
+
+    //si no hay cuartos finales
+    if(finalRooms.size() < 1){
+        cout << "Mapa no aceptable" << endl;
+        return map;
+    }
+
+    //JEFE------------------------------------------------------------
+    //buscar el camino mas lejos.
+    float maxH = 0;
+    Room* bossRoom = nullptr;
+
+   for (Room& r : allRoomsMade) { // Iterate by reference to modify the original object
+        if (firstMap[r.pos.first][r.pos.second] == SIMPLE && (r.pos.first != startY || r.pos.second != startX)) {
+
+            if (isFinalRoom(r.pos.first, r.pos.second)) {
+                float current_h = heuristic(startX, startY, r.pos.second, r.pos.first);
+                if (current_h > maxH) {
+                    maxH = current_h;
+                    bossRoom = &r; // Store pointer to the actual Room object
+                }
+            }
+        }
+    }
+
+    if (bossRoom) {
+        bossRoom->type = BOSS; // Assign the type to the actual room object
+
+        map[bossRoom->pos.first][bossRoom->pos.second] = BOSS;
+    }
+
+    //ITEM Y TIENDA------------------------------------------------------------
+    int itemAmount = 0;
+    int shopAmount = 0;
+    int attempts = 0;
+    int nAtt = 50;
+
+    //cantidad de intentos
+    while (attempts < nAtt) {
+        for (Room& r : allRoomsMade) { // Iterate by reference
+
+            if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE && isFinalRoom(r.pos.first, r.pos.second)) {
+
+                // If it's a final room and not the boss room
+                if (&r != bossRoom && r.type != BOSS) { // Compare addresses to ensure it's not the boss room
+
+                    float probItemRand = (float)rand() / RAND_MAX;
+                    if (probItemRand < probItem && itemAmount < 3) { // Limit max items
+                        r.type = ITEM;
+                        itemAmount++;
+                    }
+
+                    float probShopRand = (float)rand() / RAND_MAX;
+                    if (probShopRand < probShop && shopAmount < 2) { // Limit max shops
+                        r.type = SHOP;
+                        shopAmount++;
+                    }
+                }
+            }
+        }
+        attempts++;
+    }
+
+    // SECRETO------------------------------------------------------------
+    int secretAmount = 0;
+    attempts = 0;
+    nAtt = 20;
+    while (attempts < nAtt) {
+        for (Room& r : allRoomsMade) {
+            std::vector<std::pair<int, int>> potentialSecretCoords;
+            for (int i = 0; i < M; ++i) {
+                for (int j = 0; j < N; ++j) {
+                    if (firstMap[i][j] == NOTHING && isPossibeSecret(i, j)) {
+                        potentialSecretCoords.push_back({i, j});
+                    }
+                }
+            }
+
+            // Now, try to place secret rooms in these potential spots
+            if (!potentialSecretCoords.empty()) {
+                for (const auto& coord : potentialSecretCoords) {
+                    int y = coord.first;
+                    int x = coord.second;
+
+                    if (map[y][x] == UNAVAILABLE) { //si esta disponible el cuarto
+                        float probSecretRand = (float)rand() / RAND_MAX;
+                        if (probSecretRand < probSecret && secretAmount < 10) { //limitar el maximo de cuartos
+
+
+                            Room secretRoom({y, x}, SIMPLE, currentIdRoom++); //nuevo ID, nuevo 
+                            secretRoom.type = SECRET;
+                            allRoomsMade.push_back(secretRoom); // Add to allRoomsMade
+
+                            // Mark the map for the secret room
+                            map[y][x] = SECRET;
+                            secretAmount++;
+                        }
+                    }
+                }
+            }
+        attempts++;
+        }
+    }
+
+    //A rehacer
+    for (const Room& r : allRoomsMade) {
+        for (int i = 0; i < r.height; ++i) {
+            for (int j = 0; j < r.width; ++j) {
+                // Ensure the coordinates are within map bounds before access
+                if (isInLimits(r.pos.second + j, r.pos.first + i)) {
+                    if (map[r.pos.first + i][r.pos.second + j] == EMPTY ||
+                        map[r.pos.first + i][r.pos.second + j] == UNAVAILABLE ||
+                        r.type == BOSS || r.type == ITEM || r.type == SHOP) {
+                        map[r.pos.first + i][r.pos.second + j] = r.type;
+                    }
+                }
+            }
+        }
+    }
+
+    //al final se regresa el mapa
+    return map;
+}
+
+
+//----------------------------------------------
+
 //g++ Tarea4PCG.cpp -o wow
 //./wow
 int main(){
 
     srand(time(nullptr));
-
-    int M = 7, N = 13; //ALTO Y ANCHO
 
     int sY = (M/2); //pos inicial en x
     int sX = (N/2); //pos incial en y
@@ -276,23 +569,43 @@ int main(){
     
     //PROBABILIDADES
     float sRoom = 0.5f; //probabilidad secreto
-    float iRoom = 0.0f; //probabilidad items;
+    float iRoom = 0.5f; //probabilidad items;
 
-    int probSimple = 50;
-    int probLarge = 10;
-    int probWide = 15;
-    int probTall = 20;
+    int probSimple = 60;    //prob simple
+    int probLarge = 5;      //prob large
+    int probWide = 10;      //prob wide
+    int probTall = 10;      //prob tall
 
-    int lvl = 1;    //nivel en el que esta
-    float points = 5;
-    points += ((rand() % 3) + (lvl*2.6f)); //puntos para que gaste en cuartos
-    float probBifurcation = 0.5f;
+    int lvl = 2;            //nivel en el que esta
+    float points = 5;       //puntos iniciales
 
-    Map myMap = map_RoomSize(sY ,sX ,points, M, N, probSimple, probLarge, probWide, probTall, probBifurcation);
+    float probItem = 0.5f;  //probabilidad de Item
+    int maxItem = 3;        //maximo de items
 
-    cout << endl << "puntaje que sobro: " << points << endl;
+    float probShop = 0.8f;  //probabilidad de Tienda
+    int maxShop = 3;        //maximo de tiendas
 
-    printMap(myMap);
+    float probSecret = 0.3f;//probabilidad de Secreto
+    int maxSecret = 3;      //maximo de secretos
+
+    points += (rand() % 3); //randomizado
+    points += (lvl*2.6f);   //puntaje basado en el nivel
+    
+    float probBifurcation = 0.7f;
+
+    Map sizeMap = map_RoomSize(sY ,sX ,points, M, N, probSimple, probLarge, probWide, probTall, probBifurcation);
+    Map typeMap = roomTypeMap(sizeMap, M, N, sY, sX, probItem, probShop, probSecret);
+
+    
+    cout << "---------------    MAPA SIZE   ---------------" << endl;
+    cout << endl << "puntaje Extra: " << points << endl;
+    printMap(sizeMap);
+    /*
+    cout << "---------------    MAPA ID     ---------------" << endl;
+    printMap(roomIdMap);*/
+    
+    cout << "---------------    MAPA TYPE     ---------------" << endl;
+    printMap(typeMap);
     //crear mapa con tamaño de cuartos
     //crear mapa con tipo de cuartos
 
