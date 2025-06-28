@@ -10,27 +10,9 @@
 //No olvidar g++ -std=c++11 -Wall -Wextra -pedantic Tarea4PCG.cpp -o isaac
 
 using namespace std;
-using Map = std::vector<std::vector<int>>;
+using Map = vector<vector<int>>;
 
 /*
-//drunk agent para la creacion de cuartos
-//celullar automata para ver donde se crea el secret room
-
-//matriz para representar el mapa
-//arbol para poder determinar el camino
-
-
-//GRILLA
-// PRIORIDAD
-
-//cuartos tienen 4 posibles direcciones para comenzar, de ahi se crea el cuarto en base a esa posicion,
-//eso quiere decir de que tambien esta la posibilidad de crear 2 o 3 cuartos alrededor de un cuarto
-//de ahi se instancian el siguiente cuarto y la posibilidad de cuartos alrededor disminuye.
-//asi hasta que llegue a su fin.
-
-//se identifican los cuartos finales, es decir que tienen solo 1 cuarto alrededor. ahi se ponen items o tiendas
-//cuarto secreto se revisa (en un espacio disponible) alrededor suyo y si hay 2 o mas cuartos alrededor, se crea ahi.
-//el jefe se crea en el final, es decir en la casilla mas lejana.
 //cuarto super secreto se crea en el cuarto que esta antes del jefe.
 //salida secreta se crea en cualquier habitacion excepto el jefe.
 
@@ -49,49 +31,32 @@ using Map = std::vector<std::vector<int>>;
 // salida secreta (probabilidad)
 */
 
+
+//para la representacion
+const string V_DOOR =     "D";   //en medio de cada pared
+const string V_WALL =     "#";   //lugar inaccesible
+const string V_SPACE =    "-";   //
+const string V_OBJ =      "I";   //item
+const string V_GUY =      "S";   //para la tienda
+const string V_MYSTERY =  "?";   //secreto
+const string V_ENEMY =    "B";   //para el jefe    
+const string V_SPIKE =    "V";   //para sacrificio
+const string V_STATUE =   "P";   //para maldicion
+const string V_KEEPER =   "K";   //para el super secreto
+const string V_AWAY =     "E";   //salida secreta
+const string V_START =    "@";  //comienzo
+
 //tipo de cuarto, para imprimir el mapa
-const int EMPTY = 0;
-const int UNAVAILABLE = 1;
-const int BOSS = 2;
-const int ITEM = 3;
-const int SHOP = 4;
-const int SECRET = 5; 
-const int HIDDEN = 6;
-const int CURSE = 7;
-const int SACRI = 8;
-const int EXIT = 9;
-
-
-/*
-//TRES MAPAS
-//MAPA 1 = cuartos
-//MAPA 2 = tipos de cuartos
-//MAPA 3 = representacion grafica del mapa
-
-//Ejemplo de como se ve
-//grilla original de 2x8, tipo de cuartos(tamaños), posicion inicial es (2,1)
-//   Este
-//   v
-// 1 1 3 3
-// 0 0 1 0
-
-//como se ve con el tipo de cuarto
-//aqui se colocan los cuartos secretos, tiendas, items, etc.
-//4 0 0 0
-//1 5 2 1
-
-//como se ve en completo
-// 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1
-// 1       1       1               1
-// 1   T                           1
-// 1       1       1               1
-// 1 1 1 1 1 1 1 1 1 1   1 1 1 1 1 1
-// 1 1 1 1 1       1       1 1 1 1 1
-// 1 1 1 1 1   X   1   B   1 1 1 1 1
-// 1 1 1 1 1       1       1 1 1 1 1
-// 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 
-
-*/
+const int EMPTY = 0;        //cuarto vacio
+const int UNAVAILABLE = 1;  //no disponible
+const int BOSS = 2;         //jefe
+const int ITEM = 3;         //item
+const int SHOP = 4;         //tienda
+const int SECRET = 5;       //secreto
+const int HIDDEN = 6;       //super secreto
+const int CURSE = 7;        //maldicion
+const int SACRI = 8;        //cuarto de sacrificio
+const int EXIT = 9;         //salida secreta
 
 //tamaño de cuarto
 const int NOTHING = 0;  //espacio libre
@@ -109,23 +74,19 @@ const int Dy[] = {-1,1,0,0};    //direcciones aleatorias
 const int Dx[] = {0,0,-1,1};
 
 
-
-int M = 7, N = 13; //ALTO Y ANCHO
+int M = 7, N = 13; //ALTO Y ANCHO DEL MAPA
 
 struct Room{
     pair<int, int> pos;     // Posicion (fila, columna)
     int size;               // Tamaño de cuarto (SIMPLE, LARGE, WIDE, TALL)
-    int h;                  // Profundidad del cuarto (distancia desde el inicio)
     int type;               // Tipo de cuarto (BOSS, ITEM, SHOP, etc.)
     int id;                 // ID único para la sala (para BFS y conteo de conexiones)
 
     int width;              // Ancho real del cuarto
     int height;             // Alto real del cuarto
 
-    int connections;        // Número de conexiones a otras salas
-
     // Constructor para inicializar
-    Room(pair<int, int> p, int s, int room_id) : pos(p), size(s), h(0), type(EMPTY), id(room_id), connections(0) {
+    Room(pair<int, int> p, int s, int room_id) : pos(p), size(s), type(EMPTY), id(room_id) {
         switch (s) { // Use 's' for size, not 'roomSize'
             case SIMPLE: height = 1; width = 1; break;
             case LARGE:  height = 2; width = 2; break;
@@ -137,7 +98,7 @@ struct Room{
 };
 
 vector<Room> allRoomsMade; //todos los cuartos hechos
-Map roomIdMap(M, std::vector<int>(N, 0));              //mapa de ID
+Map roomIdMap(M, vector<int>(N, 0));              //mapa de ID
 int currentIdRoom = 1;      //id actual del cuarto
 vector<Room> finalRooms;    //cuartos finales
 
@@ -146,7 +107,6 @@ bool isInLimits(int X, int Y){
     if(Y >= 0 && Y < M && X >= 0 && X < N){ return true; }
     return false;
 }
-
 
 
 //verifica si esta libre el espacio
@@ -209,16 +169,16 @@ float getRoomCost(int roomType) {
 
 //imprimir el mapa casual
 void printMap(const Map& map){
-    std::cout << "--- Current Map ---" << std::endl;
+    cout << "--- Current Map ---" << endl;
     cout << setw(3);
     for (const auto& row : map) {
         for (int cell : row) {
             // Adapt this to represent your cells meaningfully (e.g., ' ' for empty, '#' for occupied).
-            std::cout << cell << setw(3);
+            cout << cell << setw(3);
         }
-        std::cout << std::endl;
+        cout << endl;
     }
-    std::cout << "-------------------" << std::endl;
+    cout << "-------------------" << endl;
 }
 
 //genera el camino de cuartos(tamaño), es recursivo este
@@ -233,7 +193,6 @@ void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float&
 
     //colocar el cuarto
     placeRoom(map,currY,currX, currRmType);
-    roomIdMap[currY][currX] = currentIdRoom;
     
     pointsLeft -= roomCost;                 //se resta el puntaje
     
@@ -276,7 +235,7 @@ void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float&
 Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimple, int wLarge, int wWide, int wTall, float probBif){
     allRoomsMade.clear(); //se limpia
     currentIdRoom = 0;
-    Map map(M, std::vector<int>(N, NOTHING)); //SE INSTANCIA EL MAPA
+    Map map(M, vector<int>(N, NOTHING)); //SE INSTANCIA EL MAPA
 
     //el primer intento, se hacen los mayores mapas
     generatePathRoomSize(map,startY, startX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif);
@@ -314,39 +273,13 @@ void printMapOne(const Map& map){
     }
 }
 
-//----------------------------------------------
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+//---------------------------------------------
 
 
 //regresa los cuartos cercanos
-std::vector<Room*> getNearbyRooms(const std::vector<Room>& allRooms, int currentCellY, int currentCellX) {
-    std::vector<Room*> nearbyRooms;
-    std::vector<int> foundRoomIds; // Para evitar añadir la misma sala varias veces
+vector<Room*> getNearbyRooms(const vector<Room>& allRooms, int currentCellY, int currentCellX) {
+    vector<Room*> nearbyRooms;     //para añadir los cuartos
+    vector<int> foundRoomIds; // Para evitar añadir la misma sala varias veces
 
     for (int i = 0; i < 4; ++i) {
         int nextY = currentCellY + Dy[i];
@@ -356,7 +289,7 @@ std::vector<Room*> getNearbyRooms(const std::vector<Room>& allRooms, int current
         if (nextY >= 0 && nextY < M && nextX >= 0 && nextX < N) {
             int roomIdAtNeighbor = roomIdMap[nextY][nextX];
 
-            if (roomIdAtNeighbor != NOTHING) { 
+            if (roomIdAtNeighbor != NOTHING) {      //si esta vacio el mapa
 
                 bool alrAdd = false;
                 for (int id : foundRoomIds) {
@@ -368,11 +301,11 @@ std::vector<Room*> getNearbyRooms(const std::vector<Room>& allRooms, int current
 
                 if (!alrAdd) {
                     // Busca el objeto Room correspondiente en allRoomsMade usando el ID
-                    for (const Room& room : allRooms) { // Itera por referencia constante
+                    for (const Room& room : allRooms) {                 // por cada cuarto
                         if (room.id == roomIdAtNeighbor ) {
                             nearbyRooms.push_back(const_cast<Room*>(&room));
-                            foundRoomIds.push_back(roomIdAtNeighbor); // Marca como añadido
-                            break; // Ya encontramos el cuarto, pasa al siguiente vecino
+                            foundRoomIds.push_back(roomIdAtNeighbor);   // Marca como añadido
+                            break;                                      // Ya encontramos el cuarto, pasa al siguiente vecino
                         }
                     }
                 }
@@ -382,7 +315,6 @@ std::vector<Room*> getNearbyRooms(const std::vector<Room>& allRooms, int current
 
     return nearbyRooms;
 }
-
 
 //si es un cuarto final
 bool isFinalRoom(int Y, int X){
@@ -409,15 +341,17 @@ float heuristic(int startX, int startY, int endX, int endY){
     return sqrt(pow((endX - startX),2) + pow((endY- startY),2));
 }
 
-//crear el mapa
-Map roomTypeMap(const Map& firstMap, int M, int N, int startY, int startX, float probItem, float probShop, float probSecret){
+//crear el mapa con la especialidad del cuarto
+Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
+    float probItem, float probShop, float probSecret, float probHidden,
+    int maxItem, int maxShop, int maxSecret){
 
     vector<Room> finalRooms; //cuartos que no tienen nada alrededor suyo
-    Map map(M, std::vector<int>(N, UNAVAILABLE)); //se crea un segundo mapa
+    Map map(M, vector<int>(N, UNAVAILABLE)); //se crea un segundo mapa
 
     for(int i = 0; i < M; i++){
         for(int j = 0; j < N; j++){
-            if(firstMap[i][j] != NOTHING){ map[i][j] = EMPTY;} //se colocan los cuartos
+            if(firstMap[i][j] != NOTHING){ map[i][j] = EMPTY;} //se colocan los cuartos del primer mapa
         }
     }
 
@@ -457,33 +391,30 @@ Map roomTypeMap(const Map& firstMap, int M, int N, int startY, int startX, float
 
     if (bossRoom) {
         bossRoom->type = BOSS; // Assign the type to the actual room object
-
-        map[bossRoom->pos.first][bossRoom->pos.second] = BOSS;
+        map[bossRoom->pos.first][bossRoom->pos.second] = BOSS;      //se asigna el valor
     }
 
     //ITEM Y TIENDA------------------------------------------------------------
-    int itemAmount = 0;
-    int shopAmount = 0;
-    int attempts = 0;
-    int nAtt = 50;
+    int itemAmount = 0;     //cantidad de items
+    int shopAmount = 0;     //cantidad de tiendas
+    int attempts = 0;       //intentos
+    int nAtt = 20;          //numero de intentos maximo
 
     //cantidad de intentos
     while (attempts < nAtt) {
-        for (Room& r : allRoomsMade) { // Iterate by reference
+        for (Room& r : allRoomsMade) { //todos los cuartos
 
-            if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE && isFinalRoom(r.pos.first, r.pos.second)) {
+            if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE && isFinalRoom(r.pos.first, r.pos.second)) { //si es un cuarto simple, es final y esta vacio
+                if (&r != bossRoom && r.type != BOSS) { // Si no es un nivel de jefe
 
-                // If it's a final room and not the boss room
-                if (&r != bossRoom && r.type != BOSS) { // Compare addresses to ensure it's not the boss room
-
-                    float probItemRand = (float)rand() / RAND_MAX;
-                    if (probItemRand < probItem && itemAmount < 3) { // Limit max items
+                    float probItemRand = (float)rand() / RAND_MAX;      //probabilidad
+                    if (probItemRand < probItem && itemAmount < maxItem) { // Limite max items
                         r.type = ITEM;
                         itemAmount++;
                     }
 
                     float probShopRand = (float)rand() / RAND_MAX;
-                    if (probShopRand < probShop && shopAmount < 2) { // Limit max shops
+                    if (probShopRand < probShop && shopAmount < maxShop) { // Limite max shops
                         r.type = SHOP;
                         shopAmount++;
                     }
@@ -494,21 +425,22 @@ Map roomTypeMap(const Map& firstMap, int M, int N, int startY, int startX, float
     }
 
     // SECRETO------------------------------------------------------------
-    int secretAmount = 0;
-    attempts = 0;
-    nAtt = 20;
+    int secretAmount = 0;   //cantidad de secretos
+    attempts = 0;           //se reinicia la cantidad de intentos, ademas de modificalro
+    nAtt = 10;
     while (attempts < nAtt) {
         for (Room& r : allRoomsMade) {
-            std::vector<std::pair<int, int>> potentialSecretCoords;
+            vector<pair<int, int>> potentialSecretCoords; //posibles cuartos, coordenadas
+
             for (int i = 0; i < M; ++i) {
                 for (int j = 0; j < N; ++j) {
                     if (firstMap[i][j] == NOTHING && isPossibeSecret(i, j)) {
-                        potentialSecretCoords.push_back({i, j});
+                        potentialSecretCoords.push_back({i, j});        //se añade la posicion
                     }
                 }
             }
 
-            // Now, try to place secret rooms in these potential spots
+            //se agregan el posible cuarto, si hay posiciones
             if (!potentialSecretCoords.empty()) {
                 for (const auto& coord : potentialSecretCoords) {
                     int y = coord.first;
@@ -516,14 +448,15 @@ Map roomTypeMap(const Map& firstMap, int M, int N, int startY, int startX, float
 
                     if (map[y][x] == UNAVAILABLE) { //si esta disponible el cuarto
                         float probSecretRand = (float)rand() / RAND_MAX;
-                        if (probSecretRand < probSecret && secretAmount < 10) { //limitar el maximo de cuartos
 
-
-                            Room secretRoom({y, x}, SIMPLE, currentIdRoom++); //nuevo ID, nuevo 
+                        if (probSecretRand < probSecret && secretAmount < maxSecret) { //limitar el maximo de cuartos
+                            Room secretRoom({y, x}, SIMPLE, currentIdRoom++); //nuevo ID
                             secretRoom.type = SECRET;
-                            allRoomsMade.push_back(secretRoom); // Add to allRoomsMade
+                            allRoomsMade.push_back(secretRoom); // añade a allroomsmade
 
-                            // Mark the map for the secret room
+                            // se agrega a los mapas
+                            firstMap[y][x] = SIMPLE;
+                            roomIdMap[y][x] = secretRoom.id;
                             map[y][x] = SECRET;
                             secretAmount++;
                         }
@@ -534,15 +467,21 @@ Map roomTypeMap(const Map& firstMap, int M, int N, int startY, int startX, float
         }
     }
 
-    //A rehacer
+    
+    //super secreto se debe ir por el cuarto anterior al del jefe, de ahi se crea.
+
+    //sacrificio y maldicion son aleatorios, igual que los secretos, pero se intenta una sola vez
+
+    //A rehacer el mapa
     for (const Room& r : allRoomsMade) {
         for (int i = 0; i < r.height; ++i) {
             for (int j = 0; j < r.width; ++j) {
-                // Ensure the coordinates are within map bounds before access
+                //si esta en los limites
                 if (isInLimits(r.pos.second + j, r.pos.first + i)) {
+                    //si es un cuarto con tipo de cosa
                     if (map[r.pos.first + i][r.pos.second + j] == EMPTY ||
                         map[r.pos.first + i][r.pos.second + j] == UNAVAILABLE ||
-                        r.type == BOSS || r.type == ITEM || r.type == SHOP) {
+                        r.type == BOSS || r.type == ITEM || r.type == SHOP || r.type == HIDDEN) {
                         map[r.pos.first + i][r.pos.second + j] = r.type;
                     }
                 }
@@ -554,8 +493,129 @@ Map roomTypeMap(const Map& firstMap, int M, int N, int startY, int startX, float
     return map;
 }
 
+//hacer el ultimo mapa, el visual
+void printFinalMap(const Map& sizeMap, const Map& typeMap, int startY, int startX){
 
-//----------------------------------------------
+    // Each logical cell (1x1) expands to 4 visual units (3 for interior + 1 for wall/door).
+    int visualM = (M * 4) + 1;
+    int visualN = (N * 4) + 1;
+
+    //crear un mapa lleno de paredes
+    vector<vector<string>> visualGrid(visualM, vector<string>(visualN, V_WALL));
+
+
+    //primero el cuarto vacio
+    for (const Room& r : allRoomsMade) {
+
+        int stFila = r.pos.first * 4;   //comienzo de la fila
+        int stCol = r.pos.second * 4;   //comienzo de la columna
+
+        // dimension del cuarto
+        int visRoomH = r.height * 4; // e.g., 1x1 room is 3, 2x1 room is 7
+        int visRoomW = r.width * 4;  // e.g., 1x1 room is 3, 1x2 room is 7
+
+        // crear cuarto basico (3x3)
+        for (int i = 1; i < visRoomH; ++i) {
+            for (int j = 1; j < visRoomW; ++j) {
+                if (stFila + i < visualM && stCol + j < visualN) {
+                    visualGrid[stFila + i][stCol + j] = V_SPACE;
+                }
+            }
+        }
+
+        //mitad del cuarto
+        int charY = stFila + 2;
+        int charX = stCol + 2;
+
+        //asignar valor al medio del cuarto
+        if (charY < visualM && charX < visualN) {
+            if (r.type == BOSS) visualGrid[charY][charX] = V_ENEMY;
+            else if (r.type == ITEM) visualGrid[charY][charX] = V_OBJ;
+            else if (r.type == SHOP) visualGrid[charY][charX] = V_GUY;
+            else if (r.type == SECRET) visualGrid[charY][charX] = V_MYSTERY;
+            else if (r.type == HIDDEN) visualGrid[charY][charX] = V_KEEPER;
+            else if (r.type == CURSE) visualGrid[charY][charX] = V_STATUE;
+            else if (r.type == SACRI) visualGrid[charY][charX] = V_SPIKE;
+            else if (r.type == EXIT) visualGrid[charY][charX] = V_AWAY;
+            else if (r.pos.first == startY && r.pos.second == startX){
+                visualGrid[charY][charX] = V_START;
+            }
+        }
+    }
+
+    // PUERTAS
+    for (const Room& r : allRoomsMade) {
+        
+
+        for (int cell_y_offset = 0; cell_y_offset < r.height; ++cell_y_offset) {
+            for (int cell_x_offset = 0; cell_x_offset < r.width; ++cell_x_offset) {
+
+                int currY = r.pos.first + cell_y_offset;
+                int currX = r.pos.second + cell_x_offset;
+
+                // coordenadas para el centro de las puertas
+                int baseY = currY * 4;
+                int baseX = currX * 4;
+
+                //posibles vecinas para cada cuarto
+                for (int i = 0; i < 4; ++i) { // 0:Up, 1:Down, 2:Left, 3:Right
+                    int nextY = currY + Dy[i];
+                    int nextX = currX + Dx[i];
+
+                    //dentro de limites y sea un cuarto
+                    if (isInLimits(nextX, nextY) && sizeMap[nextY][nextX] != NOTHING) {
+                        //verificar que el cuarto sea distinto al siguiente
+
+                        if (roomIdMap[nextY][nextX] != r.id) {
+                            // poner la puerta
+
+                            int doorY = baseY;
+                            int doorX = baseX;
+
+                            if (i == 0) { // Up
+                                doorX += 2;
+                                if (doorY >= 0 && doorX >= 0 && doorY < visualM && doorX < visualN){
+                                    visualGrid[doorY][doorX] = V_DOOR;}
+                            } else if (i == 1) { // Down
+                                doorY += 4;
+                                doorX += 2;
+                                if (doorY >= 0 && doorX >= 0 && doorY < visualM && doorX < visualN){
+                                    visualGrid[doorY][doorX] = V_DOOR;}
+                                    
+                            } else if (i == 2) { // Left
+                                doorY += 2;
+                                if (doorY >= 0 && doorX >= 0 && doorY < visualM && doorX < visualN){
+                                    visualGrid[doorY][doorX] = V_DOOR;
+                                }
+                            } else if (i == 3) { // Right
+                                doorY += 2;
+                                doorX += 4;
+                                if (doorY >= 0 && doorX >= 0 && doorY < visualM && doorX < visualN){
+                                    visualGrid[doorY][doorX] = V_DOOR;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    // hacer el mapa
+    cout << endl << "---------------    MAPA TYPE     ---------------" << endl;
+    for (int i = 0; i < visualM; ++i) {
+        for (int j = 0; j < visualN; ++j) {
+            cout << visualGrid[i][j] << " ";
+        }
+        cout << endl;
+    }
+    cout << "-------------------\n" << endl;
+}
+
+ 
+
+//MAIN----------------------------------------------
 
 //g++ Tarea4PCG.cpp -o wow
 //./wow
@@ -588,26 +648,35 @@ int main(){
     float probSecret = 0.3f;//probabilidad de Secreto
     int maxSecret = 3;      //maximo de secretos
 
+    //POR IMPLEMENTAR
+    float probHidden = 0.3f; //probabilidad de super secreto
+    float probCurse = 0.1f; //probabilidad de maldicion
+    float probSacri = 0.1f; //probabilidad de sacrificio
+    float probExit  = 0.1f; //probabilidad de salida secreta 
+
     points += (rand() % 3); //randomizado
     points += (lvl*2.6f);   //puntaje basado en el nivel
     
     float probBifurcation = 0.7f;
 
     Map sizeMap = map_RoomSize(sY ,sX ,points, M, N, probSimple, probLarge, probWide, probTall, probBifurcation);
-    Map typeMap = roomTypeMap(sizeMap, M, N, sY, sX, probItem, probShop, probSecret);
+    Map typeMap = roomTypeMap(sizeMap, M, N, sY, sX, probItem, probShop, probSecret, probHidden, maxItem, maxShop, maxSecret);
 
     
     cout << "---------------    MAPA SIZE   ---------------" << endl;
     cout << endl << "puntaje Extra: " << points << endl;
     printMap(sizeMap);
-    /*
+    
     cout << "---------------    MAPA ID     ---------------" << endl;
-    printMap(roomIdMap);*/
+    printMap(roomIdMap);
     
     cout << "---------------    MAPA TYPE     ---------------" << endl;
     printMap(typeMap);
     //crear mapa con tamaño de cuartos
     //crear mapa con tipo de cuartos
+    //imprimir mapa final
+
+    printFinalMap(sizeMap, typeMap, sY,sX);
 
     return 0;
 }
