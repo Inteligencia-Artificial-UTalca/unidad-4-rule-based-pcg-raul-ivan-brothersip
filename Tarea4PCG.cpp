@@ -76,6 +76,21 @@ const int Dx[] = {0,0,-1,1};
 
 int M = 7, N = 13; //ALTO Y ANCHO DEL MAPA
 
+////////////////////////////Estructura base de BSP////////////////////////////////////////////
+struct Tallo { //delcaramos la estructura base del bsp que comtempla las coordenadas de inicio y las dimensiones de la region
+    int x, y, width, height;
+};
+//declaramos la estructura de la hoja donde cada tallo contiene una region y gera subhojas
+struct Hoja {
+    Tallo region; //regiojn que representa que la hoja esta en el mapa
+    Hoja* left = nullptr;//puntero de la subhoja izquierda
+    Hoja* right = nullptr;//puntero de la subhoja derecha
+
+    Hoja(Tallo r) : region(r) {} //constructor que inicializa la hoja con su region dada
+};
+
+
+/// Drunk/////////
 struct Room{
     pair<int, int> pos;     // Posicion (fila, columna)
     int size;               // Tamaño de cuarto (SIMPLE, LARGE, WIDE, TALL)
@@ -182,54 +197,67 @@ void printMap(const Map& map){
 }
 
 //genera el camino de cuartos(tamaño), es recursivo este
-void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float& pointsLeft, int mapM, int mapN, int wSimple, int wLarge, int wWide, int wTall, float probBif){
+void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float& pointsLeft,
+                          int mapM, int mapN, int wSimple, int wLarge, int wWide, int wTall,
+                          float probBif, int minY, int maxY, int minX, int maxX) {
 
-    float currBifProb = probBif; //posible nueva bifurcacion
+    // Chequeo límites BSP
+    if (currY < minY || currY >= maxY || currX < minX || currX >= maxX) return;
 
-    float roomCost = getRoomCost(currRmType); //obtener el valor del cuarto actual
-    //si no quedan puntos o 
-    if( pointsLeft < roomCost || !canPlaceRoom(map, currY, currX, currRmType, mapM, mapN)){
-        return; } //termina el camino
+    float roomCost = getRoomCost(currRmType);
 
-    //colocar el cuarto
-    placeRoom(map,currY,currX, currRmType);
-    
-    pointsLeft -= roomCost;                 //se resta el puntaje
-    
-    int nExpansion = 1; //tipo de caminos a realizar
-    if((float)rand() / RAND_MAX < probBif){
-        probBif -= 0.1f;
-            if((float)rand() / RAND_MAX > 0.5f){ nExpansion = 2;} //si es una o dos
-            else{ nExpansion = 3; }
+    if (pointsLeft < roomCost || !canPlaceRoom(map, currY, currX, currRmType, mapM, mapN)) {
+        return;
     }
-    else{ probBif += 0.1f;}
 
-    for(int i = 0; i < nExpansion; i++){
-        if(pointsLeft <= 0){ break;} //si se queda sin puntos
-    
-        int dirId = rand() %4; //tipo de direccion a ir
-        int nextY = currY + Dy[dirId];  //proximo Y
-        int nextX = currX + Dx[dirId];  //proximo X
+    // Verificar que la habitación cabe dentro de la región BSP
+    int width = 0, height = 0;
+    switch (currRmType){
+        case SIMPLE: height = 1; width = 1; break;
+        case LARGE:  height = 2; width = 2; break;
+        case WIDE:   height = 1; width = 2; break;
+        case TALL:   height = 2; width = 1; break;
+    }
+    if (currY + height > maxY || currX + width > maxX) return;
 
-        int nextRoomType = SIMPLE;  //proximo tipo de ciarto
-        int totalW = wSimple + wLarge + wWide + wTall; //total de posibilidades de cuarto
-        int randomW = rand() % totalW;                  //rand cuarto
+    placeRoom(map, currY, currX, currRmType);
+    pointsLeft -= roomCost;
 
-        //asignacion de cuarto
-        if (randomW < wSimple) { nextRoomType = SIMPLE;}
-        else if (randomW < wSimple + wLarge) { nextRoomType = LARGE; }
-        else if (randomW < wSimple + wLarge + wWide) { nextRoomType = WIDE;}
-        else { nextRoomType = TALL; }
+    int nExpansion = 1;
+    if ((float)rand() / RAND_MAX < probBif) {
+        probBif -= 0.1f;
+        nExpansion = ((float)rand() / RAND_MAX > 0.5f) ? 2 : 3;
+    } else {
+        probBif += 0.1f;
+    }
 
-        float nextRoomCost = getRoomCost(nextRoomType); //obtener precio del siguiente cuarto
+    for (int i = 0; i < nExpansion; i++) {
+        if (pointsLeft <= 0) break;
 
-        //proximo cuarto
-        if(pointsLeft >= nextRoomCost && canPlaceRoom(map, nextY, nextX, nextRoomType, mapM, mapN)){
-            generatePathRoomSize(map, nextY, nextX, nextRoomType, pointsLeft, mapM, mapN, wSimple, wLarge, wWide, wTall, probBif);
+        int dirId = rand() % 4;
+        int nextY = currY + Dy[dirId];
+        int nextX = currX + Dx[dirId];
+
+        int nextRoomType = SIMPLE;
+        int totalW = wSimple + wLarge + wWide + wTall;
+        int randomW = rand() % totalW;
+        if (randomW < wSimple) nextRoomType = SIMPLE;
+        else if (randomW < wSimple + wLarge) nextRoomType = LARGE;
+        else if (randomW < wSimple + wLarge + wWide) nextRoomType = WIDE;
+        else nextRoomType = TALL;
+
+        float nextRoomCost = getRoomCost(nextRoomType);
+        if (pointsLeft >= nextRoomCost && canPlaceRoom(map, nextY, nextX, nextRoomType, mapM, mapN)) {
+            // Asegurarse que el próximo paso está dentro de la región BSP
+            if (nextY >= minY && nextY < maxY && nextX >= minX && nextX < maxX) {
+                generatePathRoomSize(map, nextY, nextX, nextRoomType, pointsLeft,
+                                     mapM, mapN, wSimple, wLarge, wWide, wTall, probBif,
+                                     minY, maxY, minX, maxX);
+            }
         }
-
     }
 }
+
 
 //FUNCION PRINCIPAL
 Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimple, int wLarge, int wWide, int wTall, float probBif){
@@ -238,7 +266,7 @@ Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimpl
     Map map(M, vector<int>(N, NOTHING)); //SE INSTANCIA EL MAPA
 
     //el primer intento, se hacen los mayores mapas
-    generatePathRoomSize(map,startY, startX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif);
+    generatePathRoomSize(map,startY, startX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif,0,M,0,N); //le pasamos los 4 argumentos extra al integrar bsp
 
     //PARA QUE USE LA MAYORIA DE PUNTOS
     int maxAttempts = 10;   //INTENTOS MAXIMOS
@@ -251,7 +279,7 @@ Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimpl
 
         //SI SE PUEDE COLOCAR
         if(canPlaceRoom(map, startY + randY, startX + randX, SIMPLE, M, N)){ //SE INTENTA DE NUEVO 
-            generatePathRoomSize(map,startY + randY, startX + randX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif); }
+            generatePathRoomSize(map,startY + randY, startX + randX, SIMPLE, points, M, N, wSimple, wLarge, wWide,wTall, probBif,0,M,0,N); } //le pasamos los 4 argumentos extra al integrar bsp
         attempts++;
     }
     return map;
@@ -344,7 +372,7 @@ float heuristic(int startX, int startY, int endX, int endY){
 //crear el mapa con la especialidad del cuarto
 Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
     float probItem, float probShop, float probSecret, float probHidden,
-    int maxItem, int maxShop, int maxSecret){
+    int maxItem, int maxShop, int maxSecret, float probCurse, float probSacri){
 
     vector<Room> finalRooms; //cuartos que no tienen nada alrededor suyo
     Map map(M, vector<int>(N, UNAVAILABLE)); //se crea un segundo mapa
@@ -490,6 +518,34 @@ Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
     }
 
     //al final se regresa el mapa
+
+    // === MALDICIÓN ===
+bool placedCurse = false;
+if ((float)rand() / RAND_MAX < probCurse) {
+    for (Room& r : allRoomsMade) {
+        if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE) {
+            r.type = CURSE;
+            map[r.pos.first][r.pos.second] = CURSE;
+            placedCurse = true;
+            break;
+        }
+    }
+}
+
+// === SACRIFICIO ===
+bool placedSacri = false;
+if ((float)rand() / RAND_MAX < probSacri) {
+    for (Room& r : allRoomsMade) {
+        if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE) {
+            r.type = SACRI;
+            map[r.pos.first][r.pos.second] = SACRI;
+            placedSacri = true;
+            break;
+        }
+    }
+}
+    
+
     return map;
 }
 
@@ -527,7 +583,7 @@ void printFinalMap(const Map& sizeMap, const Map& typeMap, int startY, int start
         int charY = stFila + 2;
         int charX = stCol + 2;
 
-        //asignar valor al medio del cuarto
+        //asignamos valor al medio del cuarto
         if (charY < visualM && charX < visualN) {
             if (r.type == BOSS) visualGrid[charY][charX] = V_ENEMY;
             else if (r.type == ITEM) visualGrid[charY][charX] = V_OBJ;
@@ -613,70 +669,152 @@ void printFinalMap(const Map& sizeMap, const Map& typeMap, int startY, int start
     cout << "-------------------\n" << endl;
 }
 
- 
+//////////////Algoritmo de BSP////////////////////////////////////////////
+//funcion de bsp que  se encargara de dividir las hojas si es posible en dos subhojas
+bool splitHoja(Hoja* hoja, int minSize) {
+    if (hoja->left || hoja->right) return false; //si la hoja ya fue dividida no hace nada
+    //decidimos de forma aleatoria si dividirla de forma horizontal o vertical
+    bool split = (rand() % 2);
+    //ajustamos los cortes para el balance
+    if (hoja->region.width > hoja->region.height &&
+        hoja->region.width / hoja->region.height >= 1.25)
+        split = false;//corte vertical
+    else if (hoja->region.height > hoja->region.width &&
+             hoja->region.height / hoja->region.width >= 1.25)
+        split = true;//corte horizontal
+
+     //calculamos el valor maximo para la division   
+    int max = (split ? hoja->region.height : hoja->region.width) - minSize;
+    if (max <= minSize) return false;
+        //elegimos el punto de division de forma aleatoria
+    int SSplit = minSize + rand() % (max - minSize + 1);
+        //por ultimo creamos dos hojas nuevas segun la division que se hizo(vertical o horizontal)
+    if (split) {//horizontal
+        hoja->left  = new Hoja({hoja->region.x, hoja->region.y, hoja->region.width, SSplit});
+        hoja->right = new Hoja({hoja->region.x, hoja->region.y + SSplit, hoja->region.width, hoja->region.height - SSplit});
+    } else {//vertical
+        hoja->left  = new Hoja({hoja->region.x, hoja->region.y, SSplit, hoja->region.height});
+        hoja->right = new Hoja({hoja->region.x + SSplit, hoja->region.y, hoja->region.width - SSplit, hoja->region.height});
+    }
+
+    return true;
+}
+//corazon del sistema ya que manejara la logica de bsp para dividir las hojas
+void BSP(Map& map, int maxLeaves, int minSize,
+         int wSimple, int wLarge, int wWide, int wTall, float probBif) {
+    std::vector<Hoja*> leaves; //vector que almacena las hojas actuales del algoritmo
+    Hoja* raiz = new Hoja({0, 0, (int)map[0].size(), (int)map.size()}); //hoja raiz que cubre todo el mapa
+    leaves.push_back(raiz);
+
+    bool haysplit = true; //verificacion para ver si se dividio 
+    while (haysplit && leaves.size() < (size_t)maxLeaves) {
+        haysplit = false; //verificacion por si no hay mas divisiones 
+        for (size_t i = 0; i < leaves.size(); i++) {
+            Hoja* l = leaves[i];
+            if (!l->left && !l->right) {
+                if (splitHoja(l, minSize)) {//si la division se logro se añaden nuevas hojas al vector
+                    leaves.push_back(l->left);
+                    leaves.push_back(l->right);
+                    haysplit = true; //indicamos si hubo divisiones en cada nivel 
+                }
+            }
+        }
+    }
+
+    // Por cada hoja BSP generamos Drunk Agent dentro de esa región
+    float points = 5.0f;  // o se ajusta segun se requiera(es la probabilidad que maneja la cantidad de cuartos que se generan)
+    for (Hoja* leaf : leaves) {
+        generatePathRoomSize(map,
+                             leaf->region.y + leaf->region.height / 2, //posicion y de la hoja
+                             leaf->region.x + leaf->region.width / 2,  //posicion x de la hoja 
+                             SIMPLE, //habitacion inicial
+                             points,
+                             M, N,
+                             wSimple, wLarge, wWide, wTall,
+                             probBif,
+                             leaf->region.y, leaf->region.y + leaf->region.height, //limites vertical de la hoja
+                             leaf->region.x, leaf->region.x + leaf->region.width); //limite horizontal
+    }
+}
+
 
 //MAIN----------------------------------------------
 
 //g++ Tarea4PCG.cpp -o wow
 //./wow
-int main(){
-
+int main() {
     srand(time(nullptr));
 
-    int sY = (M/2); //pos inicial en x
-    int sX = (N/2); //pos incial en y
+    int sY = (M / 2); // pos inicial en y (fila)
+    int sX = (N / 2); // pos inicial en x (columna)
+
+    // PROBABILIDADES
+    float sRoom = 0.5f;    // probabilidad secreto (no usado directamente aquí)
+    float iRoom = 0.5f;    // probabilidad items (no usado directamente aquí)
+
+    int probSimple = 60;   // peso o probabilidad para sala simple
+    int probLarge = 5;     // peso o probabilidad para sala large
+    int probWide = 10;     // peso o probabilidad para sala wide
+    int probTall = 10;     // peso o probabilidad para sala tall
 
     
-    //PROBABILIDADES
-    float sRoom = 0.5f; //probabilidad secreto
-    float iRoom = 0.5f; //probabilidad items;
+    int lvl = 2;           // nivel actual
+    float points = 20.0f;      // puntos iniciales
 
-    int probSimple = 60;    //prob simple
-    int probLarge = 5;      //prob large
-    int probWide = 10;      //prob wide
-    int probTall = 10;      //prob tall
+    float probItem = 0.5f; // probabilidad de Item
+    int maxItem = 3;       // máximo de items
 
-    int lvl = 2;            //nivel en el que esta
-    float points = 5;       //puntos iniciales
+    float probShop = 0.8f; // probabilidad de Tienda
+    int maxShop = 1;       // máximo de tiendas
 
-    float probItem = 0.5f;  //probabilidad de Item
-    int maxItem = 3;        //maximo de items
+    float probSecret = 0.3f; // probabilidad de Secreto
+    int maxSecret = 1;       // máximo de secretos
 
-    float probShop = 0.8f;  //probabilidad de Tienda
-    int maxShop = 3;        //maximo de tiendas
 
-    float probSecret = 0.3f;//probabilidad de Secreto
-    int maxSecret = 3;      //maximo de secretos
+    // POR IMPLEMENTAR
+    float probHidden = 0.3f; // probabilidad de super secreto
+    float probCurse = 0.5f;  // probabilidad de maldición (no usado aquí)
+    float probSacri = 0.5f;  // probabilidad de sacrificio (no usado aquí)
+    float probExit  = 0.1f;  // probabilidad de salida secreta (no usado aquí)
 
-    //POR IMPLEMENTAR
-    float probHidden = 0.3f; //probabilidad de super secreto
-    float probCurse = 0.1f; //probabilidad de maldicion
-    float probSacri = 0.1f; //probabilidad de sacrificio
-    float probExit  = 0.1f; //probabilidad de salida secreta 
+    points += (rand() % 3); // randomizado
+    points += (lvl * 2.6f); // puntaje basado en el nivel
 
-    points += (rand() % 3); //randomizado
-    points += (lvl*2.6f);   //puntaje basado en el nivel
-    
     float probBifurcation = 0.7f;
 
-    Map sizeMap = map_RoomSize(sY ,sX ,points, M, N, probSimple, probLarge, probWide, probTall, probBifurcation);
-    Map typeMap = roomTypeMap(sizeMap, M, N, sY, sX, probItem, probShop, probSecret, probHidden, maxItem, maxShop, maxSecret);
+    // Ahora el llamado a map_RoomSize incluye límites internos en generatePathRoomSize
+    Map sizeMap = map_RoomSize(sY, sX, points, M, N, probSimple, probLarge, probWide, probTall, probBifurcation);
 
-    
+    Map typeMap = roomTypeMap(sizeMap, M, N, sY, sX,
+                              probItem, probShop, probSecret, probHidden,
+                              maxItem, maxShop, maxSecret,probSacri,probCurse);
+
     cout << "---------------    MAPA SIZE   ---------------" << endl;
     cout << endl << "puntaje Extra: " << points << endl;
     printMap(sizeMap);
-    
+
     cout << "---------------    MAPA ID     ---------------" << endl;
     printMap(roomIdMap);
-    
+
     cout << "---------------    MAPA TYPE     ---------------" << endl;
     printMap(typeMap);
-    //crear mapa con tamaño de cuartos
-    //crear mapa con tipo de cuartos
-    //imprimir mapa final
 
-    printFinalMap(sizeMap, typeMap, sY,sX);
+    // imprimir mapa final
+    printFinalMap(sizeMap, typeMap, sY, sX);
+
+    cout << "Leyenda\n";
+    cout << "D : Puerta\n";
+    cout << "# : Pared\n";
+    cout << "- : Espacio\n";
+    cout << "I : Item\n";
+    cout << "S : Tienda\n";
+    cout << "? : Secreto\n";
+    cout << "B : Jefe\n";
+    cout << "V : Sacrificio\n";
+    cout << "P : Maldición\n";
+    cout << "K : Super Secreto\n";
+    cout << "E : Salida Secreta\n";
+    cout << "@ : Comienzo\n";
 
     return 0;
 }
