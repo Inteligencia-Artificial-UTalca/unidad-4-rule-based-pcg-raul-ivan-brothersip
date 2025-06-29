@@ -7,7 +7,6 @@
 #include <cmath>    //matematicas aaaaaaaaaaaa
 
 // Define Map as a vector of vectors of integers.
-//No olvidar g++ -std=c++11 -Wall -Wextra -pedantic Tarea4PCG.cpp -o isaac
 
 using namespace std;
 using Map = vector<vector<int>>;
@@ -369,187 +368,6 @@ float heuristic(int startX, int startY, int endX, int endY){
     return sqrt(pow((endX - startX),2) + pow((endY- startY),2));
 }
 
-/*
-//crear el mapa con la especialidad del cuarto( version 1)
-Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
-    float probItem, float probShop, float probSecret, float probHidden,
-    int maxItem, int maxShop, int maxSecret, float probCurse, float probSacri){
-
-    vector<Room> finalRooms; //cuartos que no tienen nada alrededor suyo
-    Map map(M, vector<int>(N, UNAVAILABLE)); //se crea un segundo mapa
-
-    for(int i = 0; i < M; i++){
-        for(int j = 0; j < N; j++){
-            if(firstMap[i][j] != NOTHING){ map[i][j] = EMPTY;} //se colocan los cuartos del primer mapa
-        }
-    }
-
-    //si es cuarto final, es decir si solo tiene un cuarto alrededor
-    for(int i = 0; i < M; i++){
-        for(int j = 0; j < N; j++){
-            if(firstMap[i][j] == SIMPLE && isFinalRoom(i,j)){
-                Room fRoom({i,j}, firstMap[i][j],roomIdMap[i][j]); //se crea nuevo cuarto
-                finalRooms.push_back(fRoom);                        //se agrega a la lista
-            }
-        }
-    }
-
-    //si no hay cuartos finales
-    if(finalRooms.size() < 1){
-        cout << "Mapa no aceptable" << endl;
-        return map;
-    }
-
-    //JEFE------------------------------------------------------------
-    //buscar el camino mas lejos.
-    float maxH = 0;
-    Room* bossRoom = nullptr;
-
-   for (Room& r : allRoomsMade) { // Iterate by reference to modify the original object
-        if (firstMap[r.pos.first][r.pos.second] == SIMPLE && (r.pos.first != startY || r.pos.second != startX)) {
-
-            if (isFinalRoom(r.pos.first, r.pos.second)) {
-                float current_h = heuristic(startX, startY, r.pos.second, r.pos.first);
-                if (current_h > maxH) {
-                    maxH = current_h;
-                    bossRoom = &r; // Store pointer to the actual Room object
-                }
-            }
-        }
-    }
-
-    if (bossRoom) {
-        bossRoom->type = BOSS; // Assign the type to the actual room object
-        map[bossRoom->pos.first][bossRoom->pos.second] = BOSS;      //se asigna el valor
-    }
-
-    //ITEM Y TIENDA------------------------------------------------------------
-    int itemAmount = 0;     //cantidad de items
-    int shopAmount = 0;     //cantidad de tiendas
-    int attempts = 0;       //intentos
-    int nAtt = 20;          //numero de intentos maximo
-
-    //cantidad de intentos
-    while (attempts < nAtt) {
-        for (Room& r : allRoomsMade) { //todos los cuartos
-
-            if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE && isFinalRoom(r.pos.first, r.pos.second)) { //si es un cuarto simple, es final y esta vacio
-                if (&r != bossRoom && r.type != BOSS) { // Si no es un nivel de jefe
-
-                    float probItemRand = (float)rand() / RAND_MAX;      //probabilidad
-                    if (probItemRand < probItem && itemAmount < maxItem) { // Limite max items
-                        r.type = ITEM;
-                        itemAmount++;
-                    }
-
-                    float probShopRand = (float)rand() / RAND_MAX;
-                    if (probShopRand < probShop && shopAmount < maxShop) { // Limite max shops
-                        r.type = SHOP;
-                        shopAmount++;
-                    }
-                }
-            }
-        }
-        attempts++;
-    }
-
-    // SECRETO------------------------------------------------------------
-    int secretAmount = 0;   //cantidad de secretos
-    attempts = 0;           //se reinicia la cantidad de intentos, ademas de modificalro
-    nAtt = 10;
-    while (attempts < nAtt) {
-        for (Room& r : allRoomsMade) {
-            vector<pair<int, int>> potentialSecretCoords; //posibles cuartos, coordenadas
-
-            for (int i = 0; i < M; ++i) {
-                for (int j = 0; j < N; ++j) {
-                    if (firstMap[i][j] == NOTHING && isPossibeSecret(i, j)) {
-                        potentialSecretCoords.push_back({i, j});        //se añade la posicion
-                    }
-                }
-            }
-
-            //se agregan el posible cuarto, si hay posiciones
-            if (!potentialSecretCoords.empty()) {
-                for (const auto& coord : potentialSecretCoords) {
-                    int y = coord.first;
-                    int x = coord.second;
-
-                    if (map[y][x] == UNAVAILABLE) { //si esta disponible el cuarto
-                        float probSecretRand = (float)rand() / RAND_MAX;
-
-                        if (probSecretRand < probSecret && secretAmount < maxSecret) { //limitar el maximo de cuartos
-                            Room secretRoom({y, x}, SIMPLE, currentIdRoom++); //nuevo ID
-                            secretRoom.type = SECRET;
-                            allRoomsMade.push_back(secretRoom); // añade a allroomsmade
-
-                            // se agrega a los mapas
-                            firstMap[y][x] = SIMPLE;
-                            roomIdMap[y][x] = secretRoom.id;
-                            map[y][x] = SECRET;
-                            secretAmount++;
-                        }
-                    }
-                }
-            }
-        attempts++;
-        }
-    }
-
-    
-    //super secreto se debe ir por el cuarto anterior al del jefe, de ahi se crea.
-
-    //sacrificio y maldicion son aleatorios, igual que los secretos, pero se intenta una sola vez
-
-    //A rehacer el mapa
-    for (const Room& r : allRoomsMade) {
-        for (int i = 0; i < r.height; ++i) {
-            for (int j = 0; j < r.width; ++j) {
-                //si esta en los limites
-                if (isInLimits(r.pos.second + j, r.pos.first + i)) {
-                    //si es un cuarto con tipo de cosa
-                    if (map[r.pos.first + i][r.pos.second + j] == EMPTY ||
-                        map[r.pos.first + i][r.pos.second + j] == UNAVAILABLE ||
-                        r.type == BOSS || r.type == ITEM || r.type == SHOP || r.type == HIDDEN) {
-                        map[r.pos.first + i][r.pos.second + j] = r.type;
-                    }
-                }
-            }
-        }
-    }
-
-    //al final se regresa el mapa
-
-    // === MALDICIÓN ===
-bool placedCurse = false;
-if ((float)rand() / RAND_MAX < probCurse) {
-    for (Room& r : allRoomsMade) {
-        if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE) {
-            r.type = CURSE;
-            map[r.pos.first][r.pos.second] = CURSE;
-            placedCurse = true;
-            break;
-        }
-    }
-}
-
-// === SACRIFICIO ===
-bool placedSacri = false;
-if ((float)rand() / RAND_MAX < probSacri) {
-    for (Room& r : allRoomsMade) {
-        if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE) {
-            r.type = SACRI;
-            map[r.pos.first][r.pos.second] = SACRI;
-            placedSacri = true;
-            break;
-        }
-    }
-}
-    
-    return map;
-}
-*/
-
 //crear el mapa con la especialidad del cuarto( version 2)
 //se quito la funcion isFinalRoom(i,j) ya que era muy restrictivo
 Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
@@ -758,19 +576,23 @@ void printFinalMap(const Map& sizeMap, const Map& typeMap, int startY, int start
         int charX = stCol + 2;
 
         //asignamos valor al medio del cuarto
-        if (charY < visualM && charX < visualN) {
-            if (r.type == BOSS) visualGrid[charY][charX] = V_ENEMY;
-            else if (r.type == ITEM) visualGrid[charY][charX] = V_OBJ;
-            else if (r.type == SHOP) visualGrid[charY][charX] = V_GUY;
-            else if (r.type == SECRET) visualGrid[charY][charX] = V_MYSTERY;
-            else if (r.type == HIDDEN) visualGrid[charY][charX] = V_KEEPER;
-            else if (r.type == CURSE) visualGrid[charY][charX] = V_STATUE;
-            else if (r.type == SACRI) visualGrid[charY][charX] = V_SPIKE;
-            else if (r.type == EXIT) visualGrid[charY][charX] = V_AWAY;
-            else if (r.pos.first == startY && r.pos.second == startX){
-                visualGrid[charY][charX] = V_START;
-            }
+            if (charY < visualM && charX < visualN) {
+        if (r.pos.first == startY && r.pos.second == startX) {
+            visualGrid[charY][charX] = V_START;
+        } else if (r.type == BOSS) visualGrid[charY][charX] = V_ENEMY;
+        else if (r.type == ITEM) visualGrid[charY][charX] = V_OBJ;
+        else if (r.type == SHOP) visualGrid[charY][charX] = V_GUY;
+        else if (r.type == SECRET) visualGrid[charY][charX] = V_MYSTERY;
+        else if (r.type == HIDDEN) visualGrid[charY][charX] = V_KEEPER;
+        else if (r.type == CURSE) visualGrid[charY][charX] = V_STATUE;
+        else if (r.type == SACRI) visualGrid[charY][charX] = V_SPIKE;
+        else if (r.type == EXIT) visualGrid[charY][charX] = V_AWAY;
+        else {
+            // Para cualquier otro tipo o EMPTY
+            visualGrid[charY][charX] = V_SPACE;  // o un simbolo que quieras para habitaciones normales
         }
+}
+
     }
 
     // PUERTAS
@@ -915,6 +737,9 @@ void BSP(Map& map, int maxLeaves, int minSize,
 //MAIN----------------------------------------------
 
 //g++ Tarea4PCG.cpp -o wow
+
+//compilar con :
+// g++ -std=c++11 -Wall -Wextra -pedantic Tarea4PCG.cpp -o bdp
 //./wow
 int main() {
     srand(time(nullptr));
@@ -933,7 +758,7 @@ int main() {
 
     int mode = 1;           // el modo de generacion (cambiar para cambiar la generacion)
     int lvl = 2;            // nivel actual
-    float points = 100;     // puntos iniciales
+    float points = 5;     // puntos iniciales
 
     float probItem = 0.5f;  // probabilidad de Item
     int maxItem = 3;        // maximo de items
@@ -953,7 +778,6 @@ int main() {
     switch (mode) {
     case 1:
         std::cout << "Modo 1: Muchas habitaciones grandes\n";
-        points = 300;          // Más puntos = más habitaciones
         probSimple = 10;       // Pocos cuartos simples
         probLarge  = 40;       // Alta probabilidad para grandes
         probWide   = 30;
@@ -961,15 +785,13 @@ int main() {
         break;
     case 2:
         std::cout << "Modo 2: Muchas habitaciones pequeñas\n";
-        points = 350;          // Más puntos = más habitaciones
-        probSimple = 85;       // Mayoría simples
+        probSimple = 85;       // Mayoria simples
         probLarge  = 5;        // Muy pocos grandes
         probWide   = 5;
         probTall   = 5;
         break;
     case 3:
         std::cout << "Modo 3: Generacion aleatoria\n";
-        points = 50 + rand() % 251; // entre 50 y 300 puntos
         probSimple = rand() % 101;  // 0 a 100
         probLarge  = rand() % 51;   // 0 a 50
         probWide   = rand() % 51;
