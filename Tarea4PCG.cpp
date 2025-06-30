@@ -670,7 +670,7 @@ bool splitHoja(Hoja* hoja, int minSize) {
 //corazon del sistema ya que manejara la logica de bsp para dividir las hojas
 void BSP(Map& map, int maxLeaves, int minSize,
          int wSimple, int wLarge, int wWide, int wTall, float probBif) {
-    std::vector<Hoja*> leaves; //vector que almacena las hojas actuales del algoritmo
+    vector<Hoja*> leaves; //vector que almacena las hojas actuales del algoritmo
     Hoja* raiz = new Hoja({0, 0, (int)map[0].size(), (int)map.size()}); //hoja raiz que cubre todo el mapa
     leaves.push_back(raiz);
 
@@ -748,30 +748,67 @@ int main() {
     float probSacri = 0.5f;  // probabilidad de sacrificio 
     float probExit  = 0.1f;  // probabilidad de salida secreta (no usado aqui)
 
+
+
+    bool validLevel = false;
+    bool validOption = false;
+
+    do{
+        cout <<"Para la generacion de los niveles, se necesita un puntaje\ndebido a que cada cuarto tiene que gastar un precio." << endl;
+        cout << "Cada cuarto tiene los siguietnes precios:\n    cuarto de 1x1 cuesta 1.0\n    cuarto de 2x1 o 1x2 cuesta 1.5\n    cuarto de 2x2 cuesta 2.0" << endl << endl;
+        cout << "Puntaje: esta generado por la siguiente ecuacion:   random(0,2) + nivel*2.6 + 5\n¿En que nivel esta?" << endl;
+        cin >> lvl;
+        if(lvl >= 0){
+            validLevel = true;
+        }
+        else{
+            cout << "NIVEL INVALIDO << debe ser desde 0 en adelante" << endl << endl;
+        }
+    }while(!validLevel);
+
+    do{
+        cout << "Selecciona un modo de generacion:" << endl;
+        cout << "[1] habitaciones grandes" << endl;
+        cout << "[2] habitaciones pequeñas" << endl;
+        cout << "[3] habitaciones aleatorias" << endl;
+
+        cin >> mode;
+        if(mode == 1 || mode == 2 || mode == 3){
+            validOption = true;
+        }
+        else{
+            cout << "Opcion INVALIDA << intente de nuevo" << endl << endl;
+        }
+
+    } while(!validOption);
+
+
+
+
     switch (mode) {
     case 1:
-        std::cout << "Modo 1: Muchas habitaciones grandes\n";
+        cout << "Modo 1: Muchas habitaciones grandes\n";
         probSimple = 10;       // Pocos cuartos simples
         probLarge  = 40;       // Alta probabilidad para grandes
         probWide   = 30;
         probTall   = 30;
         break;
     case 2:
-        std::cout << "Modo 2: Muchas habitaciones pequeñas\n";
+        cout << "Modo 2: Muchas habitaciones pequeñas\n";
         probSimple = 85;       // Mayoria simples
         probLarge  = 5;        // Muy pocos grandes
         probWide   = 5;
         probTall   = 5;
         break;
     case 3:
-        std::cout << "Modo 3: Generacion aleatoria\n";
+        cout << "Modo 3: Generacion aleatoria\n";
         probSimple = rand() % 101;  // 0 a 100
         probLarge  = rand() % 51;   // 0 a 50
         probWide   = rand() % 51;
         probTall   = rand() % 51;
         break;
     default:
-        std::cout << "Ingresa una opcion correcta\n";
+        cout << "Ingresa una opcion correcta\n";
         break;
 }
 
