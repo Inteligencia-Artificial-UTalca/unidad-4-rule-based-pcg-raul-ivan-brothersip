@@ -1,34 +1,13 @@
 #include <iostream>
 #include <vector>
-#include <random>   // Para random
+#include <random>
 #include <iomanip>
-#include <queue>    // para las colas
-#include <chrono>   // para tener el seed para el random
-#include <cmath>    //matematicas aaaaaaaaaaaa
-
-// Define Map as a vector of vectors of integers.
+#include <queue>
+#include <chrono>
+#include <cmath>
 
 using namespace std;
-using Map = vector<vector<int>>;
-
-/*
-//cuarto super secreto se crea en el cuarto que esta antes del jefe.
-//salida secreta se crea en cualquier habitacion excepto el jefe.
-
-
-// cuarto secreto = esta al lado del final de un cuarto final. debe estar rodeado de min 2
-// cuarto super secreto = al lado del (cuarto anterior del) jefe
-// boss room = cuarto mas lejos
-// tienda = cuartos finales
-// items = cuartos finales
-
-// HEURISTICA
-// sacrificio
-// maldicion
-
-// PROBABILIDAD
-// salida secreta (probabilidad)
-*/
+using Map = vector<vector<int>>;    //mapa
 
 
 //para la representacion
@@ -64,19 +43,21 @@ const int LARGE = 2;    // cuarto de 2x2
 const int WIDE = 3;     // cuarto de 2x1
 const int TALL = 4;     // cuarto de 1x2
 
-const float COST_S = 1.0f; //Coste de los cuartos
+//coste de los cuartos
+const float COST_S = 1.0f;
 const float COST_L = 2.0f;
 const float COST_W = 1.5f;
 const float COST_T = 1.5f;
 
-const int Dy[] = {-1,1,0,0};    //direcciones aleatorias
+    //direcciones aleatorias
+const int Dy[] = {-1,1,0,0};
 const int Dx[] = {0,0,-1,1};
 
 
 int M = 7, N = 13; //ALTO Y ANCHO DEL MAPA
 
 ////////////////////////////Estructura base de BSP////////////////////////////////////////////
-struct Tallo { //delcaramos la estructura base del bsp que comtempla las coordenadas de inicio y las dimensiones de la region
+struct Tallo { //declaramos la estructura base del bsp que comtempla las coordenadas de inicio y las dimensiones de la region
     int x, y, width, height;
 };
 //declaramos la estructura de la hoja donde cada tallo contiene una region y gera subhojas
@@ -203,8 +184,9 @@ void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float&
     // Chequeo límites BSP
     if (currY < minY || currY >= maxY || currX < minX || currX >= maxX) return;
 
-    float roomCost = getRoomCost(currRmType);
+    float roomCost = getRoomCost(currRmType); //obtener el costo
 
+    //si es posible generarlo
     if (pointsLeft < roomCost || !canPlaceRoom(map, currY, currX, currRmType, mapM, mapN)) {
         return;
     }
@@ -219,33 +201,43 @@ void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float&
     }
     if (currY + height > maxY || currX + width > maxX) return;
 
-    placeRoom(map, currY, currX, currRmType);
-    pointsLeft -= roomCost;
+    placeRoom(map, currY, currX, currRmType);   //agregar el mapa
+    pointsLeft -= roomCost;                     //se quita la cantidad de puntos
 
-    int nExpansion = 1;
+    int nExpansion = 1;                         //posibles caminos a tomar
+                    
+    //bifurcaciones
     if ((float)rand() / RAND_MAX < probBif) {
-        probBif -= 0.1f;
-        nExpansion = ((float)rand() / RAND_MAX > 0.5f) ? 2 : 3;
+        probBif -= 0.1f;                        //disminuye la probabilidad
+        if((float)rand() / RAND_MAX > 0.5f){    //posibilidad de que sea dos o mas caminos
+            nExpansion = 2; }
+        else{ nExpansion = 3; }
+        
     } else {
-        probBif += 0.1f;
+        probBif += 0.1f;                        //si no hay, aumenta la probabilidad
     }
 
+    //por cada posible expansion
     for (int i = 0; i < nExpansion; i++) {
-        if (pointsLeft <= 0) break;
+        if (pointsLeft <= 0){ break;}   //si no quedan puntos, se termina el ciclo
 
-        int dirId = rand() % 4;
+        int dirId = rand() % 4;         //direccion aleatoria
         int nextY = currY + Dy[dirId];
         int nextX = currX + Dx[dirId];
 
-        int nextRoomType = SIMPLE;
-        int totalW = wSimple + wLarge + wWide + wTall;
-        int randomW = rand() % totalW;
-        if (randomW < wSimple) nextRoomType = SIMPLE;
-        else if (randomW < wSimple + wLarge) nextRoomType = LARGE;
-        else if (randomW < wSimple + wLarge + wWide) nextRoomType = WIDE;
-        else nextRoomType = TALL;
+        int nextRoomType = SIMPLE;      //posible tipo de cuarto
+        int totalW = wSimple + wLarge + wWide + wTall;  //probabilidad total de posible tmaño de cuarto
+        int randomW = rand() % totalW;                  //al azar
 
+        //se le asigna el cuarto si es uqe esta dentro de cierto intervalo
+        if (randomW < wSimple){ nextRoomType = SIMPLE;}
+        else if (randomW < wSimple + wLarge){ nextRoomType = LARGE;}
+        else if (randomW < wSimple + wLarge + wWide){ nextRoomType = WIDE;}
+        else{ nextRoomType = TALL;}
+
+        //se obtiene el costo
         float nextRoomCost = getRoomCost(nextRoomType);
+
         if (pointsLeft >= nextRoomCost && canPlaceRoom(map, nextY, nextX, nextRoomType, mapM, mapN)) {
             // Asegurarse que el próximo paso está dentro de la región BSP
             if (nextY >= minY && nextY < maxY && nextX >= minX && nextX < maxX) {
@@ -258,10 +250,10 @@ void generatePathRoomSize(Map& map, int currY, int currX, int currRmType, float&
 }
 
 
-//FUNCION PRINCIPAL
+//FUNCION PRINCIPAL para crear el primer mapa
 Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimple, int wLarge, int wWide, int wTall, float probBif){
-    allRoomsMade.clear(); //se limpia
-    currentIdRoom = 0;
+    allRoomsMade.clear();   //se limpia
+    currentIdRoom = 0;      //el id se reinicia en 0
     Map map(M, vector<int>(N, NOTHING)); //SE INSTANCIA EL MAPA
 
     //el primer intento, se hacen los mayores mapas
@@ -271,8 +263,9 @@ Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimpl
     int maxAttempts = 10;   //INTENTOS MAXIMOS
     int attempts = 0;       //INTENTOS ACTUALES
 
+    //si es que quedan puntos y hay posibles intentos
     while(points > COST_L && attempts < maxAttempts){
-        int dirId = rand() % 4;
+        int dirId = rand() % 4; //direccion aleatoria
         int randX = Dx[dirId];
         int randY = Dy[dirId];
 
@@ -284,21 +277,6 @@ Map map_RoomSize(int startY, int startX, float& points, int M, int N, int wSimpl
     return map;
 }
 
-//imprime el primer mapa
-void printMapOne(const Map& map){
-    for (const auto& row : map) {
-        for (int cell : row) {
-            // Usamos un simple símbolo para cada tipo de cuarto
-            if (cell == NOTHING) cout << " . ";
-            else if (cell == SIMPLE) cout << " S ";
-            else if (cell == LARGE) cout << " L ";
-            else if (cell == WIDE) cout << " W ";
-            else if (cell == TALL) cout << " T ";
-            else cout << " # "; // Para cualquier otro valor inesperado
-        }
-        cout << endl;
-    }
-}
 
 //---------------------------------------------
 
@@ -308,6 +286,7 @@ vector<Room*> getNearbyRooms(const vector<Room>& allRooms, int currentCellY, int
     vector<Room*> nearbyRooms;     //para añadir los cuartos
     vector<int> foundRoomIds; // Para evitar añadir la misma sala varias veces
 
+    //cada direccion: arriba, abajo, izquierda, derecha
     for (int i = 0; i < 4; ++i) {
         int nextY = currentCellY + Dy[i];
         int nextX = currentCellX + Dx[i];
@@ -318,7 +297,7 @@ vector<Room*> getNearbyRooms(const vector<Room>& allRooms, int currentCellY, int
 
             if (roomIdAtNeighbor != NOTHING) {      //si esta vacio el mapa
 
-                bool alrAdd = false;
+                bool alrAdd = false;                //si ya se añadio
                 for (int id : foundRoomIds) {
                     if (id == roomIdAtNeighbor) {
                         alrAdd = true;
@@ -326,6 +305,7 @@ vector<Room*> getNearbyRooms(const vector<Room>& allRooms, int currentCellY, int
                     }
                 }
 
+                //si no se añadio el cuarto
                 if (!alrAdd) {
                     // Busca el objeto Room correspondiente en allRoomsMade usando el ID
                     for (const Room& room : allRooms) {                 // por cada cuarto
@@ -340,16 +320,14 @@ vector<Room*> getNearbyRooms(const vector<Room>& allRooms, int currentCellY, int
         }
     }
 
-    return nearbyRooms;
+    return nearbyRooms; //regresa los cuartos
 }
 
-//si es un cuarto final
+//si es un cuarto final, no se utiliza ahora, pero la mantenemos, para que tenga de referencia 
 bool isFinalRoom(int Y, int X){
     vector<Room*> roomsnear = getNearbyRooms(allRoomsMade, Y, X); //obtener cuartos cercanos
 
-    if(roomsnear.size() == 1){
-        return true;
-    }
+    if(roomsnear.size() == 1){ return true; }   //si solo hay 1 cuarto
     return false;
 }
 
@@ -357,9 +335,7 @@ bool isFinalRoom(int Y, int X){
 bool isPossibeSecret(int Y, int X){
     vector<Room*> roomsnear = getNearbyRooms(allRoomsMade, Y, X); //obtener cuartos cercanos
 
-    if(roomsnear.size() >= 2){
-        return true;
-    }
+    if(roomsnear.size() >= 2){ return true; } //si hay 2 o mas cuartos alrededor
     return false;
 }
 
@@ -377,6 +353,7 @@ Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
     vector<Room> finalRooms; //cuartos que no tienen nada alrededor suyo
     Map map(M, vector<int>(N, UNAVAILABLE)); //se crea un segundo mapa
 
+    //crear mapa con cuartos vacios
     for(int i = 0; i < M; i++){
         for(int j = 0; j < N; j++){
             if(firstMap[i][j] != NOTHING){ map[i][j] = EMPTY;} //se colocan los cuartos del primer mapa
@@ -404,16 +381,18 @@ Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
     float maxH = 0;
     Room* bossRoom = nullptr;
 
+    //se busca en todos los cuartos
     for (Room& r : allRoomsMade) {
         if (firstMap[r.pos.first][r.pos.second] == SIMPLE && (r.pos.first != startY || r.pos.second != startX)) {
-            float current_h = heuristic(startX, startY, r.pos.second, r.pos.first);
+            float current_h = heuristic(startX, startY, r.pos.second, r.pos.first); //se busca la distancia
             if (current_h > maxH) {
-                maxH = current_h;
-                bossRoom = &r;
+                maxH = current_h;  //cambia el valor de h
+                bossRoom = &r;  //se le asigna el cuarto
             }
         }
     }
 
+    //si hay cuarto de jefe
     if (bossRoom) {
         bossRoom->type = BOSS; //se asigna el tipo al objeto real
         map[bossRoom->pos.first][bossRoom->pos.second] = BOSS; //se asigna el valor
@@ -510,10 +489,11 @@ Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
     }
 
     //=== MALDICION ===
+    //se usa lo mismo que en los items/ tiendas/ secretos, pero solo una vez
     bool placedCurse = false;
     if ((float)rand() / RAND_MAX < probCurse) {
         for (Room& r : allRoomsMade) {
-            if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE) {
+            if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE && placedCurse == false) {
                 r.type = CURSE;
                 map[r.pos.first][r.pos.second] = CURSE;
                 placedCurse = true;
@@ -523,10 +503,11 @@ Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
     }
 
     //=== SACRIFICIO ===
+    //igual que maldicion
     bool placedSacri = false;
     if ((float)rand() / RAND_MAX < probSacri) {
         for (Room& r : allRoomsMade) {
-            if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE) {
+            if (r.type == EMPTY && firstMap[r.pos.first][r.pos.second] == SIMPLE && placedSacri == false) {
                 r.type = SACRI;
                 map[r.pos.first][r.pos.second] = SACRI;
                 placedSacri = true;
@@ -535,7 +516,7 @@ Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
         }
     }
 
-    return map;
+    return map; //regresa el mapa
 }
 
 
@@ -544,23 +525,21 @@ Map roomTypeMap(Map& firstMap, int M, int N, int startY, int startX,
 //hacer el ultimo mapa, el visual
 void printFinalMap(const Map& sizeMap, const Map& typeMap, int startY, int startX){
 
-    // Each logical cell (1x1) expands to 4 visual units (3 for interior + 1 for wall/door).
+    // cada cuarto es de 4x4, siendo 3 para el espacio y 1 para las paredes
     int visualM = (M * 4) + 1;
     int visualN = (N * 4) + 1;
 
     //crear un mapa lleno de paredes
     vector<vector<string>> visualGrid(visualM, vector<string>(visualN, V_WALL));
 
-
     //primero el cuarto vacio
-    for (const Room& r : allRoomsMade) {
-
+    for (const Room& r : allRoomsMade){
         int stFila = r.pos.first * 4;   //comienzo de la fila
         int stCol = r.pos.second * 4;   //comienzo de la columna
 
         // dimension del cuarto
-        int visRoomH = r.height * 4; // e.g., 1x1 room is 3, 2x1 room is 7
-        int visRoomW = r.width * 4;  // e.g., 1x1 room is 3, 1x2 room is 7
+        int visRoomH = r.height * 4; // 1x1 room es 3, 2x1 room es 7
+        int visRoomW = r.width * 4;  // 1x1 room es 3, 1x2 room es 7
 
         // crear cuarto basico (3x3)
         for (int i = 1; i < visRoomH; ++i) {
@@ -576,29 +555,23 @@ void printFinalMap(const Map& sizeMap, const Map& typeMap, int startY, int start
         int charX = stCol + 2;
 
         //asignamos valor al medio del cuarto
-            if (charY < visualM && charX < visualN) {
-        if (r.pos.first == startY && r.pos.second == startX) {
-            visualGrid[charY][charX] = V_START;
-        } else if (r.type == BOSS) visualGrid[charY][charX] = V_ENEMY;
-        else if (r.type == ITEM) visualGrid[charY][charX] = V_OBJ;
-        else if (r.type == SHOP) visualGrid[charY][charX] = V_GUY;
-        else if (r.type == SECRET) visualGrid[charY][charX] = V_MYSTERY;
-        else if (r.type == HIDDEN) visualGrid[charY][charX] = V_KEEPER;
-        else if (r.type == CURSE) visualGrid[charY][charX] = V_STATUE;
-        else if (r.type == SACRI) visualGrid[charY][charX] = V_SPIKE;
-        else if (r.type == EXIT) visualGrid[charY][charX] = V_AWAY;
-        else {
-            // Para cualquier otro tipo o EMPTY
-            visualGrid[charY][charX] = V_SPACE;  // o un simbolo que quieras para habitaciones normales
+        if (charY < visualM && charX < visualN) {
+            if (r.pos.first == startY && r.pos.second == startX) { visualGrid[charY][charX] = V_START; } //comienzo
+            else if (r.type == BOSS) {visualGrid[charY][charX] = V_ENEMY;}      // jefe
+            else if (r.type == ITEM) {visualGrid[charY][charX] = V_OBJ;}        // item
+            else if (r.type == SHOP) {visualGrid[charY][charX] = V_GUY;}        // tienda
+            else if (r.type == SECRET) {visualGrid[charY][charX] = V_MYSTERY;}  // secreto
+            else if (r.type == HIDDEN) {visualGrid[charY][charX] = V_KEEPER;}   // super secreto
+            else if (r.type == CURSE) {visualGrid[charY][charX] = V_STATUE;}    // maldicion
+            else if (r.type == SACRI) {visualGrid[charY][charX] = V_SPIKE;}     // sacrificio
+            else if (r.type == EXIT) {visualGrid[charY][charX] = V_AWAY;}       // secreto
+            else { visualGrid[charY][charX] = V_SPACE; }                        // Para cualquier otro tipo o EMPTY
         }
-}
-
     }
 
     // PUERTAS
     for (const Room& r : allRoomsMade) {
         
-
         for (int cell_y_offset = 0; cell_y_offset < r.height; ++cell_y_offset) {
             for (int cell_x_offset = 0; cell_x_offset < r.width; ++cell_x_offset) {
 
@@ -653,16 +626,15 @@ void printFinalMap(const Map& sizeMap, const Map& typeMap, int startY, int start
         }
     }
 
-
     // hacer el mapa
-    cout << endl << "---------------    MAPA TYPE     ---------------" << endl;
+    cout << endl << "---------------    VISUAL    ---------------" << endl;
     for (int i = 0; i < visualM; ++i) {
         for (int j = 0; j < visualN; ++j) {
             cout << visualGrid[i][j] << " ";
         }
         cout << endl;
     }
-    cout << "-------------------\n" << endl;
+    cout << "-------------------              ---------------\n" << endl;
 }
 
 //////////////Algoritmo de BSP////////////////////////////////////////////
@@ -736,11 +708,12 @@ void BSP(Map& map, int maxLeaves, int minSize,
 
 //MAIN----------------------------------------------
 
-//g++ Tarea4PCG.cpp -o wow
+//g++ Tarea4PCG.cpp -o isaac
+//./isaac
 
 //compilar con :
-// g++ -std=c++11 -Wall -Wextra -pedantic Tarea4PCG.cpp -o bdp
-//./wow
+// g++ -std=c++11 -Wall -Wextra -pedantic Tarea4PCG.cpp -o isaac
+//./isaac
 int main() {
     srand(time(nullptr));
 
@@ -756,8 +729,8 @@ int main() {
     int probWide = 10;     // peso o probabilidad para sala wide
     int probTall = 10;     // peso o probabilidad para sala tall
 
-    int mode = 1;           // el modo de generacion (cambiar para cambiar la generacion)
-    int lvl = 2;            // nivel actual
+    int mode = 2;           // el modo de generacion (cambiar para cambiar la generacion)
+    int lvl = 9;            // nivel actual
     float points = 5;     // puntos iniciales
 
     float probItem = 0.5f;  // probabilidad de Item
